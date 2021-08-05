@@ -10,7 +10,16 @@ DEFINE_CMD_ALT(GetParentCell, gpc, returns the parent cell of the reference, 1, 
 DEFINE_CMD_ALT(GetParentWorldspace, gpw, returns the parent worldspace of the reference, 1, 0, NULL);
 DEFINE_CMD_ALT(GetTeleportCell, , returns the cell to which the calling door reference teleports, 1, 0, NULL);
 DEFINE_CMD_ALT(GetLinkedDoor, , returns the door to which the calling reference is linked, 1, 0, NULL);
+
+static ParamInfo kParams_OneActor[1] =
+{
+	{	"NPC",	kParamType_Actor,	0	},
+};
+
 DEFINE_COMMAND(GetOwner, returns the owner of the calling reference, 1, 0, NULL);
+DEFINE_CMD_ALT(IsOffLimits, IsIllegal, returns true if activating the calling reference would result in a crime for the actor, true, 1, kParams_OneActor);
+DEFINE_COMMAND(IsOffLimitsToPC, returns true if activating the calling reference would result in a crime for the player, true, 0, NULL);
+
 DEFINE_COMMAND(GetParentCellOwner, returns the owner of the cell of the calling reference, 1, 0, NULL);
 DEFINE_COMMAND(GetOwningFactionRequiredRank, returns the required rank for ownership of the calling reference, 1, 0, NULL);
 DEFINE_COMMAND(GetParentCellOwningFactionRequiredRank, returns the required rank for ownership of the cell of the calling reference, 1, 0, NULL);

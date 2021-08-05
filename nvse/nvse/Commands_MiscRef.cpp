@@ -869,6 +869,103 @@ static TESForm* GetOwner(BaseExtraList& xDataList)
 	return owner;
 }
 
+static SInt8 IsOffLimits(BaseExtraList& xDataList, TESNPC* actor)
+{
+	SInt8 offLimits = -1;					//return -1 if ownership is ambiguous
+
+	TESForm* owner = GetOwner(xDataList);
+	if (owner)
+	{
+		if (owner->typeID == kFormType_TESNPC)
+		{
+			if (owner->refID == actor->refID)			//owned by this actor
+				offLimits = 0;
+			else
+			{
+#if _DEBUG
+				Console_Print("IsOffLimits - Weird global check.");  //todo: remove this!
+#endif
+				ExtraGlobal* xGlobal = GetByTypeCast(xDataList, Global);  //what is this? -Demorome
+				if (xGlobal && xGlobal->globalVar->data) {
+					offLimits = 0;
+				}
+				else {
+					offLimits = 1;
+				}
+			}
+		}
+		else if (owner->typeID == kFormType_TESFaction)
+		{
+			TESFaction* owningFaction = DYNAMIC_CAST(owner, TESForm, TESFaction);
+			if (owningFaction && !(owningFaction->IsEvil()))		//no crime to steal from evil factions
+			{
+				SInt8 reqRank = 0;
+				ExtraRank* xRank = GetByTypeCast(xDataList, Rank);
+				if (xRank)					// ExtraRank only present if required rank > 0
+				{
+					reqRank = xRank->rank;
+				}
+				if (actor->baseData.GetFactionRank((TESFaction*)owner) >= reqRank)
+					offLimits = 0;
+				else
+					offLimits = 1;
+			}
+		}
+	}
+	return offLimits;
+}
+
+bool Cmd_IsOffLimits_Execute(COMMAND_ARGS)  //changed since its undocumented iteration in FOSE, as it appears to be broken, at least in NV.
+{
+	*result = 0;
+	TESNPC* actor = NULL;
+	if (!thisObj || !ExtractArgs(EXTRACT_ARGS, &actor))
+		return true;
+#if FALLOUT_VERSION >= FALLOUT_VERSION_1_7
+	//PlayerCharacter* pc = PlayerCharacter::GetSingleton();
+	//if (actor->refID == PlayerCharacter::GetSingleton()->refID)		// let the game do the work if it's the player
+	//{
+	//	*result = CALL_MEMBER_FN(thisObj, IsOffLimitsToPlayer)() ? 1 : 0;
+	//	Console_Print("IsOffLimits player >> %.0f", *result);
+	//	return true;
+	//}
+#endif
+	TESObjectREFR* refObj;
+	if (thisObj->parentCell && !thisObj->parentCell->IsInterior() && thisObj->baseForm->typeID == kFormType_TESObjectDOOR)
+	{
+		// ownership data for doors in exteriors stored on linked door
+		ExtraTeleport* xTele = GetByTypeCast(thisObj->extraDataList, Teleport);
+		if (xTele) {
+			refObj = xTele->data->linkedDoor;
+		}
+	}
+	if (!refObj) return true;
+
+	SInt8 offLimits = IsOffLimits(refObj->extraDataList, actor);
+	if (offLimits != -1)
+		*result = offLimits;
+	else
+	{
+		offLimits = IsOffLimits(refObj->parentCell->extraDataList, actor);
+		if (offLimits == 1)
+			*result = 1;
+	}
+#if _DEBUG
+	if (IsConsoleMode())
+		Console_Print("IsOffLimits >> %f", *result);  //todo: remove this!
+#endif
+	return true;
+}
+
+bool Cmd_IsOffLimitsToPC_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	if (!thisObj) return true;
+	*result = ThisStdCall(0x579690, thisObj);
+	return true;
+}
+
+
 static UInt32 GetOwningFactionRequiredRank(BaseExtraList& xDataList)
 {
 	ExtraRank * xRank = GetByTypeCast(xDataList, Rank);
@@ -1793,4 +1890,3 @@ bool Cmd_HasEffectShader_Execute(COMMAND_ARGS)
 
 	return true;
 }
-
