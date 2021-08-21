@@ -1124,12 +1124,55 @@ bool Cmd_ar_DeepEquals_Execute(COMMAND_ARGS)
 	if (eval.ExtractArgs() && eval.NumArgs() == 2
 		 && eval.Arg(0)->CanConvertTo(kTokenType_Array) && eval.Arg(1)->CanConvertTo(kTokenType_Array))
 	{
-		auto arr1 = g_ArrayMap.Get(eval.Arg(0)->GetArray());
-		auto arr2 = g_ArrayMap.Get(eval.Arg(1)->GetArray());
+		auto arr1 = eval.Arg(0)->GetArrayVar();
+		auto arr2 = eval.Arg(1)->GetArrayVar();
 		if (arr1 && arr2)
 		{
 			*result = arr1->DeepEquals(arr2);
 		}
 	}
+	return true;
+}
+
+bool Cmd_ar_MapAppend_Execute(COMMAND_ARGS)
+{
+	// if keys are found which don't match the type of the first key, they are ignored
+	*result = false;
+	ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+	if (eval.ExtractArgs() && eval.NumArgs() >= 2)  // must at least get 1) array and 2) key::value pair.
+	{
+		auto inArr = eval.Arg(0)->GetArrayVar();
+		if (!inArr || inArr->IsPacked())
+			return true;
+		
+		auto const keyType = inArr->KeyType();
+		if (keyType == kDataType_Invalid)
+			return true;
+
+		// Append new key::value pairs.
+		for (UInt32 i = 0; i < eval.NumArgs(); i++)
+		{
+			const TokenPair* pair = eval.Arg(i)->GetPair();
+			if (pair)
+			{
+				// get the value first
+				ScriptToken* val = pair->right->ToBasicToken();
+				ArrayElement elem;
+				if (BasicTokenToElem(val, elem))
+				{
+					if (keyType == kDataType_String)
+					{
+						const char* key = pair->left->GetString();
+						if (key) inArr->SetElement(key, &elem);
+					}
+					else if (pair->left->CanConvertTo(kTokenType_Number))
+						inArr->SetElement(pair->left->GetNumber(), &elem);
+				}
+
+				delete val;
+			}
+		}
+	}
+	*result = true;
 	return true;
 }

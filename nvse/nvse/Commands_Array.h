@@ -221,3 +221,30 @@ static ParamInfo kNVSEParams_TwoArrays[2] =
 };
 
 DEFINE_CMD_ALT_EXP(ar_DeepEquals, ar_DeepCompare, "checks if every element and sub-elements are identical between two arrays.", false, kNVSEParams_TwoArrays);
+
+static ParamInfo kNVSEParams_OneArrayPairList[20] =
+{
+	{	"array",	kNVSEParamType_Array,	0	},
+	{	"key-value pair",	kNVSEParamType_Pair,	0	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+	{	"key-value pair",	kNVSEParamType_Pair,	1	},
+};
+
+
+DEFINE_COMMAND_EXP(ar_MapAppend, "appends up to 19 key::value pair to a map array", false, kNVSEParams_PairList);
