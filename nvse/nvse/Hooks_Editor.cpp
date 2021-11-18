@@ -661,6 +661,13 @@ int ParseNextLine(ScriptBuffer* scriptBuf, ScriptLineBuffer* lineBuf)
 	auto inStringLiteral = false;
 	auto inMultilineComment = false;
 
+	// Used for ";" and "//" comments.
+	const auto handleSingleLineComment = [&]()
+	{
+		while (*curScriptText && *curScriptText != '\n')
+			++curScriptText;
+	};
+
 	// skip all spaces and tabs in the beginning
 	while (isspace(*curScriptText))
 	{
@@ -684,10 +691,15 @@ int ParseNextLine(ScriptBuffer* scriptBuf, ScriptLineBuffer* lineBuf)
 			inMultilineComment = false;
 			curScriptText += 2;
 			continue;
-
 		}
-		const auto curChar = *curScriptText++;
-		if (curChar == 0)
+		if (curTwoChars == '//' && !inStringLiteral && !inMultilineComment)
+		{
+			curScriptText += 2;
+			handleSingleLineComment();
+			continue;
+		}
+		const auto curChar = *(curScriptText++);
+		if (curChar == 0)	//todo: when does this happen??
 		{
 			if (inMultilineComment)
 				return lineError("Mismatched comment block (missing '*/' for a present '/*')");
@@ -752,8 +764,7 @@ int ParseNextLine(ScriptBuffer* scriptBuf, ScriptLineBuffer* lineBuf)
 			}
 			case ';':
 			{
-				while (*curScriptText && *curScriptText != '\n') 
-					++curScriptText;
+				handleSingleLineComment();
 				continue;
 			}
 			default:
