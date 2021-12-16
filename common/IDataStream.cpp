@@ -103,7 +103,7 @@ UInt32 IDataStream::ReadString(char * buf, UInt32 bufLength, char altTerminator,
 	if(bufLength == 1)
 	{
 		buf[0] = 0;
-		return 0;
+		return 0; 
 	}
 
 	bufLength--;
@@ -116,7 +116,7 @@ UInt32 IDataStream::ReadString(char * buf, UInt32 bufLength, char altTerminator,
 		{
 			if(data == 0x0D)
 			{
-				if(Peek8() == 0x0A)
+				if(Peek8() == 0x0A) 
 					Skip(1);
 
 				break;

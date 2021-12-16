@@ -10,7 +10,7 @@
 
 static bool IsKeycodeValid(UInt32 id)		{ return (id < kMaxMacros - 2) && (id != 0xFF); }
 
-enum
+enum eControlTypes
 {
 	kControlType_Keyboard,
 	kControlType_Mouse,
@@ -50,15 +50,24 @@ UInt32 GetControl(UInt32 whichControl, UInt32 type)
 	return result;
 }
 
-void SetControl(UInt32 whichControl, UInt32 type, UInt32 keycode)
+void SetControl(UInt32 whichControl, eControlTypes type, UInt32 keycode)
 {
 	OSInputGlobals	* globs = *g_OSInputGlobals;
 
 	if(whichControl >= globs->kMaxControlBinds)
 		return;
 
-	UInt8	* binds = (type == kControlType_Mouse) ? globs->mouseBinds : globs->keyBinds;
-	keycode = (keycode >= 0x100) ? keycode - 0x100 : keycode;
+	UInt8* binds;
+	if (type == kControlType_Joystick)
+	{
+		binds = globs->joystickBinds;
+		keycode = static_cast<UInt8>(keycode);
+	}
+	else
+	{
+		binds = (type == kControlType_Mouse) ? globs->mouseBinds : globs->keyBinds;
+		keycode = (keycode >= 0x100) ? keycode - 0x100 : keycode;
+	}
 
 	// if specified key already used by another control, swap with the new one
 	for(UInt32 i = 0; i < OSInputGlobals::kMaxControlBinds; i++)
@@ -333,12 +342,12 @@ bool Cmd_IsControlDisabled_Execute(COMMAND_ARGS)
 bool Cmd_GetControl_Execute(COMMAND_ARGS)
 {
 	UInt32 whichControl = 0;
+	UInt32 ctrlType = kControlType_Keyboard;
 	*result = -1;
-
-	if(!ExtractArgs(EXTRACT_ARGS, &whichControl))
+	if(!ExtractArgs(EXTRACT_ARGS, &whichControl, &ctrlType))
 		return true;
 
-	UInt8 ctrl = GetControl(whichControl, kControlType_Keyboard);
+	UInt8 ctrl = GetControl(whichControl, ctrlType);
 	*result = (ctrl == 0xFF) ? -1 : ctrl;
 
 	if(IsConsoleMode())
@@ -422,9 +431,10 @@ bool Cmd_SetControl_Execute(COMMAND_ARGS)
 	*result = 0;
 	UInt32 key = 0;
 	UInt32 ctrl = 0;
+	UInt32 ctrlType = kControlType_Keyboard;
 
-	if(ExtractArgs(EXTRACT_ARGS, &ctrl, &key))
-		SetControl(ctrl, kControlType_Keyboard, key);
+	if(ExtractArgs(EXTRACT_ARGS, &ctrl, &key, &ctrlType))
+		SetControl(ctrl, static_cast<eControlTypes>(ctrlType), key);
 
 	return true;
 }
