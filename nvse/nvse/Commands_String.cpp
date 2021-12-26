@@ -1045,7 +1045,12 @@ bool Cmd_SetScopeModelPath_Execute(COMMAND_ARGS)
 			model = &(weapon->targetNIF);
 
 		if (model)
-			model->nifPath.Set(pathStr);
+		{
+			if (strcmp(pathStr, "") != 0)	//if not equal
+				model->nifPath.Set(pathStr);
+			else
+				model->nifPath.Set(nullptr);
+		}
 	}
 
 	return true;
