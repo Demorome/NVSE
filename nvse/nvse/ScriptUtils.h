@@ -149,8 +149,19 @@ public:
 	Script			* script;
 	ScriptEventList	* eventList;
 
-	void			Error(const char* fmt, ...);
-	bool			HasErrors() { return m_flags.IsSet(kFlag_ErrorOccurred); }
+	//Doesn't need to be initialized, just obscures the contained methods.
+	//These methods were made to be exported, while keeping a clear dependency to the class.
+	struct ErrorReporting	
+	{
+		//Sets the ErrorOccured flag (always). Returns false if SuppressErrorMsg flag is set (true otherwise).
+		static bool	TryReportError(ExpressionEvaluator& eval);
+
+		//TryReportError MUST be called before this!
+		static void	AddErrorMessage(ExpressionEvaluator& eval, const char* errorMsg);
+	};
+	
+	void			Error(const char* fmt, ...);	//Report an error
+	bool			[[nodiscard]] HasErrors() const { return m_flags.IsSet(kFlag_ErrorOccurred); }
 
 	// extract args compiled by ExpressionParser
 	bool			ExtractArgs();
@@ -241,13 +252,19 @@ void ExpressionEvaluator::AssignAmbiguousResult(T &result, CommandReturnType typ
 bool BasicTokenToElem(ScriptToken* token, ArrayElement& elem);
 
 #if RUNTIME
-void* __stdcall ExpressionEvaluatorCreate(COMMAND_ARGS);
-void __fastcall ExpressionEvaluatorDestroy(void *expEval);
-bool __fastcall ExpressionEvaluatorExtractArgs(void *expEval);
-UInt8 __fastcall ExpressionEvaluatorGetNumArgs(void *expEval);
-PluginScriptToken* __fastcall ExpressionEvaluatorGetNthArg(void *expEval, UInt32 argIdx);
-void __fastcall ExpressionEvaluatorSetExpectedReturnType(void* expEval, UInt8 retnType);
-void __fastcall ExpressionEvaluatorAssignCommandResultFromElement(void* expEval, NVSEArrayVarInterface::Element &result);
+namespace PluginExprEvalFunctions
+{
+	void* __stdcall Create(COMMAND_ARGS);
+	void __fastcall Destroy(void* expEval);
+	bool __fastcall ExtractArgs(void* expEval);
+	UInt8 __fastcall GetNumArgs(void* expEval);
+	PluginScriptToken* __fastcall GetNthArg(void* expEval, UInt32 argIdx);
+	void __fastcall SetExpectedReturnType(void* expEval, UInt8 retnType);
+	void __fastcall AssignCommandResultFromElement(void* expEval, NVSEArrayVarInterface::Element& result);
+	bool __fastcall TryReportError(void* expEval);
+	void __fastcall AddErrorMessage(void* expEval, const char* errorMsg);
+}
+
 #endif
 
 

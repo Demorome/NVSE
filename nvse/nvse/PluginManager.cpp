@@ -413,12 +413,12 @@ const char* PluginManager::GetFalloutDir()
 
 void PluginManager::InitExpressionEvaluatorUtils(ExpressionEvaluatorUtils *utils)
 {
-#if RUNTIME
-	utils->CreateExpressionEvaluator = ExpressionEvaluatorCreate;
-	utils->DestroyExpressionEvaluator = ExpressionEvaluatorDestroy;
-	utils->ExtractArgsEval = ExpressionEvaluatorExtractArgs;
-	utils->GetNumArgs = ExpressionEvaluatorGetNumArgs;
-	utils->GetNthArg = ExpressionEvaluatorGetNthArg;
+#if RUNTIME	
+	utils->CreateExpressionEvaluator = PluginExprEvalFunctions::Create;
+	utils->DestroyExpressionEvaluator = PluginExprEvalFunctions::Destroy;
+	utils->ExtractArgsEval = PluginExprEvalFunctions::ExtractArgs;
+	utils->GetNumArgs = PluginExprEvalFunctions::GetNumArgs;
+	utils->GetNthArg = PluginExprEvalFunctions::GetNthArg;
 
 	utils->ScriptTokenGetType = ScriptTokenGetType;
 	utils->ScriptTokenGetFloat = ScriptTokenGetFloat;
@@ -433,9 +433,11 @@ void PluginManager::InitExpressionEvaluatorUtils(ExpressionEvaluatorUtils *utils
 	utils->ScriptTokenGetSlice = ScriptTokenGetSlice;
 	utils->ScriptTokenGetAnimationGroup = ScriptTokenGetAnimationGroup;
 
-	utils->SetExpectedReturnType = ExpressionEvaluatorSetExpectedReturnType;
-	utils->AssignCommandResultFromElement = ExpressionEvaluatorAssignCommandResultFromElement;
+	utils->SetExpectedReturnType = PluginExprEvalFunctions::SetExpectedReturnType;
+	utils->AssignCommandResultFromElement = PluginExprEvalFunctions::AssignCommandResultFromElement;
 	utils->ScriptTokenGetElement = ScriptTokenGetArrayElement;
+	utils->TryReportError = PluginExprEvalFunctions::TryReportError;
+	utils->AddErrorMessage = PluginExprEvalFunctions::AddErrorMessage;
 #endif
 }
 

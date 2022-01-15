@@ -1738,11 +1738,21 @@ void ExpressionEvaluator::ToggleErrorSuppression(bool bSuppress)
 
 static UnorderedSet<const char *> s_warnedMods; // show corner message only once per mod script error
 
+
+bool ExpressionEvaluator::ErrorReporting::TryReportError(ExpressionEvaluator &eval)
+{
+	eval.m_flags.Set(kFlag_ErrorOccurred);
+	return eval.m_flags.IsSet(kFlag_SuppressErrorMessages);
+}
+
+void ExpressionEvaluator::ErrorReporting::AddErrorMessage(ExpressionEvaluator &eval, const char* errorMsg)
+{
+	eval.errorMessages.emplace_back(errorMsg);
+}
+
 void ExpressionEvaluator::Error(const char *fmt, ...)
 {
-	m_flags.Set(kFlag_ErrorOccurred);
-
-	if (m_flags.IsSet(kFlag_SuppressErrorMessages))
+	if (!ErrorReporting::TryReportError(*this))
 		return;
 
 	va_list args;
@@ -1751,7 +1761,7 @@ void ExpressionEvaluator::Error(const char *fmt, ...)
 	char errorMsg[0x400];
 	vsprintf_s(errorMsg, 0x400, fmt, args);
 
-	this->errorMessages.emplace_back(errorMsg);
+	ErrorReporting::AddErrorMessage(*this, errorMsg);
 
 	va_end(args);
 }
@@ -1781,44 +1791,59 @@ void ExpressionEvaluator::PrintStackTrace()
 #if RUNTIME
 thread_local SmallObjectsAllocator::FastAllocator<ExpressionEvaluator, 4> g_pluginExpEvalAllocator;
 
-void *__stdcall ExpressionEvaluatorCreate(COMMAND_ARGS)
+namespace PluginExprEvalFunctions
 {
-	ExpressionEvaluator *expEval = g_pluginExpEvalAllocator.Allocate();
-	if (expEval)
-		new (expEval) ExpressionEvaluator(PASS_COMMAND_ARGS);
-	return expEval;
-}
+	void* __stdcall Create(COMMAND_ARGS)
+	{
+		ExpressionEvaluator* expEval = g_pluginExpEvalAllocator.Allocate();
+		if (expEval)
+			new (expEval) ExpressionEvaluator(PASS_COMMAND_ARGS);
+		return expEval;
+	}
 
-void __fastcall ExpressionEvaluatorDestroy(void *expEval)
-{
-	reinterpret_cast<ExpressionEvaluator *>(expEval)->~ExpressionEvaluator();
-	g_pluginExpEvalAllocator.Free(expEval);
-}
+	void __fastcall Destroy(void* expEval)
+	{
+		reinterpret_cast<ExpressionEvaluator*>(expEval)->~ExpressionEvaluator();
+		g_pluginExpEvalAllocator.Free(expEval);
+	}
 
-bool __fastcall ExpressionEvaluatorExtractArgs(void *expEval)
-{
-	return reinterpret_cast<ExpressionEvaluator *>(expEval)->ExtractArgs();
-}
+	bool __fastcall ExtractArgs(void* expEval)
+	{
+		return reinterpret_cast<ExpressionEvaluator*>(expEval)->ExtractArgs();
+	}
 
-UInt8 __fastcall ExpressionEvaluatorGetNumArgs(void *expEval)
-{
-	return reinterpret_cast<ExpressionEvaluator *>(expEval)->NumArgs();
-}
+	UInt8 __fastcall GetNumArgs(void* expEval)
+	{
+		return reinterpret_cast<ExpressionEvaluator*>(expEval)->NumArgs();
+	}
 
-PluginScriptToken *__fastcall ExpressionEvaluatorGetNthArg(void *expEval, UInt32 argIdx)
-{
-	return reinterpret_cast<PluginScriptToken *>(reinterpret_cast<ExpressionEvaluator *>(expEval)->Arg(argIdx));
-}
+	PluginScriptToken* __fastcall GetNthArg(void* expEval, UInt32 argIdx)
+	{
+		return reinterpret_cast<PluginScriptToken*>(reinterpret_cast<ExpressionEvaluator*>(expEval)->Arg(argIdx));
+	}
 
-void __fastcall ExpressionEvaluatorSetExpectedReturnType(void* expEval, UInt8 retnType)
-{
-	reinterpret_cast<ExpressionEvaluator*>(expEval)->ExpectReturnType(static_cast<CommandReturnType>(retnType));
-}
+	void __fastcall SetExpectedReturnType(void* expEval, UInt8 retnType)
+	{
+		reinterpret_cast<ExpressionEvaluator*>(expEval)->ExpectReturnType(static_cast<CommandReturnType>(retnType));
+	}
 
-void __fastcall ExpressionEvaluatorAssignCommandResultFromElement(void* expEval, NVSEArrayVarInterface::Element& result)
-{
-	auto const eval = reinterpret_cast<ExpressionEvaluator*>(expEval);
-	eval->AssignAmbiguousResult(result, result.GetReturnType());
+	void __fastcall AssignCommandResultFromElement(void* expEval, NVSEArrayVarInterface::Element& result)
+	{
+		auto const eval = reinterpret_cast<ExpressionEvaluator*>(expEval);
+		eval->AssignAmbiguousResult(result, result.GetReturnType());
+	}
+
+	bool __fastcall TryReportError(void* expEval)
+	{
+		auto const eval = static_cast<ExpressionEvaluator*>(expEval);
+		return ExpressionEvaluator::ErrorReporting::TryReportError(*eval);
+	}
+
+	void __fastcall AddErrorMessage(void* expEval, const char* errorMsg)
+	{
+		auto const eval = static_cast<ExpressionEvaluator*>(expEval);
+		ExpressionEvaluator::ErrorReporting::AddErrorMessage(*eval, errorMsg);
+	}
 }
 #endif
 

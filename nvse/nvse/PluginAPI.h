@@ -816,9 +816,12 @@ struct ExpressionEvaluatorUtils
 	const PluginTokenSlice*	(__fastcall *ScriptTokenGetSlice)(PluginScriptToken *scrToken);
 	UInt32                  (__fastcall* ScriptTokenGetAnimationGroup)(PluginScriptToken* scrToken);
 
+	//==Added in v6.2.5
 	void					(__fastcall* SetExpectedReturnType)(void* expEval, UInt8 type);
 	void					(__fastcall* AssignCommandResultFromElement)(void* expEval, NVSEArrayVarInterface::Element &result);
 	void					(__fastcall* ScriptTokenGetElement)(PluginScriptToken* scrToken, NVSEArrayVarInterface::Element &outElem);
+	bool					(__fastcall* TryReportError)(void* expEval);
+	void					(__fastcall* AddErrorMessage)(void* expEval, const char* errorMsg);
 #endif
 };
 
