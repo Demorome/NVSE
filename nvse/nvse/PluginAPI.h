@@ -821,6 +821,8 @@ struct ExpressionEvaluatorUtils
 	void					(__fastcall* AssignCommandResultFromElement)(void* expEval, NVSEArrayVarInterface::Element &result);
 	void					(__fastcall* ScriptTokenGetElement)(PluginScriptToken* scrToken, NVSEArrayVarInterface::Element &outElem);
 	bool					(__fastcall* TryReportError)(void* expEval);
+
+	// Must call TryReportError before this!
 	void					(__fastcall* AddErrorMessage)(void* expEval, const char* errorMsg);
 #endif
 };
@@ -867,6 +869,16 @@ public:
 	void AssignCommandResult(NVSEArrayVarInterface::Element& result)
 	{
 		s_expEvalUtils.AssignCommandResultFromElement(expEval, result);
+	}
+
+	void ReportError(const char* fmt, ...)
+	{
+		if (!s_expEvalUtils.TryReportError(expEval))
+			return;
+
+		//todo: do formatting
+		
+		s_expEvalUtils.AddErrorMessage(errorMsg);
 	}
 #endif
 };
