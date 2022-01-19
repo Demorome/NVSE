@@ -252,7 +252,7 @@ void StringVarMap::Save(NVSESerializationInterface* intfc)
 
 	Serialization::OpenRecord('STVS', 0);
 
-	for (auto iter = vars.Begin(); !iter.End(); ++iter)
+	for (auto iter = permVars.Begin(); !iter.End(); ++iter)
 	{
 		if (IsTemporary(iter.Key()))	// don't save temp strings
 			continue;

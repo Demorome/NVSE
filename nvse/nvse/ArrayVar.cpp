@@ -1652,7 +1652,7 @@ void ArrayVarMap::Save(NVSESerializationInterface* intfc)
 	const ArrayElement* pElem;
 	char* str;
 	UInt16 len;
-	for (auto iter = vars.Begin(); !iter.End(); ++iter)
+	for (auto iter = permVars.Begin(); !iter.End(); ++iter)
 	{
 		if (IsTemporary(iter.Key()))
 			continue;
@@ -1957,9 +1957,16 @@ void ArrayVarMap::Clean() // garbage collection: delete unreferenced arrays
 void ArrayVarMap::DumpAll(bool save)
 {
 	auto append = false;
-	for (auto iter = vars.Begin(); !iter.End(); ++iter)
+	for (auto iter = permVars.Begin(); !iter.End(); ++iter)
 	{
 		iter.Get().DumpToFile(save ? "array_save.txt" : "array_load.txt", append);
+		append = true;
+	}
+	
+	append = false;
+	for (auto iter = auxVars.Begin(); !iter.End(); ++iter)
+	{
+		iter.Get().DumpToFile("array_temp.txt", append);
 		append = true;
 	}
 }

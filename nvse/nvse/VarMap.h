@@ -68,8 +68,10 @@ protected:
 		}
 	};
 
-	_VarMap				vars;
+	_VarMap				permVars;
 	_VarIDs				usedIDs;
+	_VarMap				auxVars;		// session-persistent vars
+	_VarMap				auxIDs;			// session-persistent ids
 	_VarIDs				tempIDs;		// set of IDs of unreferenced vars, makes for easy cleanup
 	_VarIDs				availableIDs;	// IDs < greatest used ID available as IDs for new vars
 	VarCache			cache;
@@ -88,16 +90,14 @@ protected:
 
 		if (!availableIDs.Empty())
 			id = availableIDs.PopFirst();
-		else if (!usedIDs.Empty())
+		else if (!usedIDs.Empty())	//todo: do auxIDs need to step in too?
 			id = usedIDs.LastKey() + 1;
 		cs.Leave();
 		return id;
 	}
 
 public:
-	VarMap()
-	{
-	}
+	VarMap() = default;
 
 	~VarMap()
 	{
@@ -110,9 +110,15 @@ public:
 		Var* var = cache.Get(varID);
 		if (!var)
 		{
-			var = vars.GetPtr(varID);
+			var = permVars.GetPtr(varID);
 			if (var)
 				cache.Insert(varID, var);
+			else
+			{
+				var = auxVars.GetPtr(varID);
+				if (var)
+					cache.Insert(varID, var);
+			}
 		}
 		return var;
 	}
@@ -127,7 +133,7 @@ public:
 	{
 		cs.Enter();
 		usedIDs.Insert(varID);
-		Var* var = vars.Emplace(varID, std::forward<Args>(args)...);
+		Var* var = permVars.Emplace(varID, std::forward<Args>(args)...);
 		cs.Leave();
 		return var;
 	}
@@ -136,7 +142,9 @@ public:
 	{
 		cs.Enter();
 		cache.Remove(varID);
-		vars.Erase(varID);
+		permVars.Erase(varID);
+		auxVars.Erase(varID);
+		auxIDs.Erase(varID);
 		usedIDs.Erase(varID);
 		tempIDs.Erase(varID);
 		SetIDAvailable(varID);
@@ -156,11 +164,11 @@ public:
 		typename _VarMap::Iterator iter;
 		while (true)
 		{
-			iter.Init(vars);
+			iter.Init(permVars);
 			if (iter.End()) break;
 			iter.Remove();
 		}
-
+		//auxIDs must not be cleared here, since this method is for clearing save-baked data.
 		usedIDs.Clear();
 		tempIDs.Clear();
 		availableIDs.Clear();
