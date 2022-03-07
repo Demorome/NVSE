@@ -142,7 +142,9 @@ namespace EventManager
 		void Confirm();
 
 		//Call the callback...
-		std::unique_ptr<ScriptToken> Invoke(EventInfo* eventInfo, void* arg0, void* arg1);
+		//Limited to 2 args.
+		std::unique_ptr<ScriptToken> Invoke(EventInfo* eventInfo, void* arg0, void* arg1) const;
+		std::unique_ptr<ScriptToken> InvokeRaw(EventInfo& eventInfo, void* args, TESObjectREFR* thisObj) const;
 	};
 
 	bool SetHandler(const char* eventName, EventCallback& handler);

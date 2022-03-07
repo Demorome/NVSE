@@ -480,7 +480,7 @@ private:
 };
 
 
-std::unique_ptr<ScriptToken> EventCallback::Invoke(EventInfo* eventInfo, void* arg0, void* arg1)
+std::unique_ptr<ScriptToken> EventCallback::Invoke(EventInfo* eventInfo, void* arg0, void* arg1) const
 {
 	return std::visit(overloaded
 		{
@@ -501,6 +501,23 @@ std::unique_ptr<ScriptToken> EventCallback::Invoke(EventInfo* eventInfo, void* a
 				handler(nullptr, params);
 				return nullptr;
 			}
+		}, this->toCall);
+}
+
+std::unique_ptr<ScriptToken> EventCallback::InvokeRaw([[maybe_unused]] EventInfo& eventInfo, void* args, TESObjectREFR* thisObj) const
+{
+	return std::visit(overloaded{
+		   [args, &eventInfo, thisObj](const LambdaManager::Maybe_Lambda& script)
+		   {
+			   InternalFunctionCaller caller(script.Get(), thisObj);
+			   caller.SetArgsRaw(eventInfo.numParams, args);
+			   return UserFunctionManager::Call(std::move(caller));
+		   },
+		   [args, thisObj](const EventHandler handler) -> std::unique_ptr<ScriptToken>
+		   {
+			   handler(thisObj, args);
+			   return nullptr;
+		   },
 		}, this->toCall);
 }
 
@@ -1046,18 +1063,7 @@ bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
 		if (!DoFiltersMatch(eventInfo, callback, params))
 			continue;
 
-		std::visit(overloaded{
-			[&params, &eventInfo, thisObj](const LambdaManager::Maybe_Lambda &script)
-			{
-				InternalFunctionCaller caller(script.Get(), thisObj);
-				caller.SetArgsRaw(eventInfo.numParams, params->data());
-				UserFunctionManager::Call(std::move(caller));
-			},
-			[&params, thisObj](EventHandler handler)
-			{
-				handler(thisObj, params->data());
-			},
-		}, callback.toCall);
+		callback.InvokeRaw(eventInfo, params->data(), thisObj);
 	}
 	va_end(paramList);
 	return true;	
