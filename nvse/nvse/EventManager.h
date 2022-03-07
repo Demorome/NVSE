@@ -124,7 +124,7 @@ namespace EventManager
 		bool			pendingRemove{};
 
 		using Index = UInt32;
-		using Filter = ArrayElement;
+		using Filter = SelfOwningArrayElement;
 
 		//Indexes for filters must respect the max amount of BaseFilters for the base event definition.
 		//If no filter is at an index = it is unfiltered for the nth BaseFilter.

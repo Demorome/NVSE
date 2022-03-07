@@ -619,7 +619,7 @@ bool ExtractEventCallback(ExpressionEvaluator &eval, EventManager::EventCallback
 					else if (const auto index = pair->left->GetNumber())
 					{
 						const auto basicToken = pair->right->ToBasicToken();
-						ArrayElement element;
+						SelfOwningArrayElement element;
 						if (basicToken && BasicTokenToElem(basicToken.get(), element))
 						{
 							auto const mapIndex = static_cast<UInt32>(index);
@@ -628,7 +628,7 @@ bool ExtractEventCallback(ExpressionEvaluator &eval, EventManager::EventCallback
 								eval.Error("Event filter index %u appears more than once in Set/RemoveEventHandler call.", mapIndex);
 								continue;
 							}
-							outCallback.filters.insert({ mapIndex, element });
+							outCallback.filters.insert({ mapIndex, std::move(element) });
 						}
 					}
 				}
@@ -647,8 +647,7 @@ bool ProcessEventHandler(char *eventName, EventManager::EventCallback &callback,
 		char *colon = strchr(eventName, ':');
 		if (colon)
 			*colon++ = 0;
-		const UInt32 eventMask = GetLNEventMask(eventName);
-		if (eventMask)
+		if (const UInt32 eventMask = GetLNEventMask(eventName))
 		{
 			UInt32 const numFilter = (colon && *colon) ? atoi(colon) : 0;
 			return ProcessLNEventHandler(eventMask, callback.TryGetScript(), addEvt, callback.source, numFilter);

@@ -56,9 +56,9 @@ struct EventInfo
 		: evName(name_), paramTypes(params_), numParams(nParams_), eventMask(eventMask_), installHook(installer_)
 	{}
 
-	EventInfo (const char *name_, UInt8 * params_, UInt8 numParams_) : evName(name_), paramTypes(params_), numParams(numParams_), eventMask(0), installHook(NULL){}
+	EventInfo (const char *name_, UInt8 * params_, UInt8 numParams_) : evName(name_), paramTypes(params_), numParams(numParams_), eventMask(0), installHook(nullptr){}
 
-	EventInfo () : evName(""), paramTypes(NULL), numParams(0), eventMask(0), installHook(NULL){}
+	EventInfo () : evName(""), paramTypes(nullptr), numParams(0), eventMask(0), installHook(nullptr){}
 
 	EventInfo(const EventInfo& other) = default;
 
@@ -160,19 +160,19 @@ static const UInt32 kDestroyCIOS_RetnAddr = 0x008232EF;
 
 // cheap check to prevent duplicate events being processed in immediate succession
 // (e.g. game marks OnHitWith twice per event, this way we only process it once)
-static TESObjectREFR* s_lastObj = NULL;
-static TESForm* s_lastTarget = NULL;
+static TESObjectREFR* s_lastObj = nullptr;
+static TESForm* s_lastTarget = nullptr;
 static UInt32 s_lastEvent = NULL;
 
 // OnHitWith often gets marked twice per event. If weapon enchanted, may see:
 //  OnHitWith >> OnMGEFHit >> ... >> OnHitWith. 
 // Prevent OnHitWith being reported more than once by recording OnHitWith events processed
-static TESObjectREFR* s_lastOnHitWithActor = NULL;
-static TESForm* s_lastOnHitWithWeapon = NULL;
+static TESObjectREFR* s_lastOnHitWithActor = nullptr;
+static TESForm* s_lastOnHitWithWeapon = nullptr;
 
 // And it turns out OnHit is annoyingly marked several times per frame for spells/enchanted weapons
-static TESObjectREFR* s_lastOnHitVictim = NULL;
-static TESForm* s_lastOnHitAttacker = NULL;
+static TESObjectREFR* s_lastOnHitVictim = nullptr;
+static TESForm* s_lastOnHitAttacker = nullptr;
 
 //////////////////////////////////
 // Hooks
@@ -259,7 +259,7 @@ static void InstallOnActorEquipHook()
 		// OnActorEquip event also (unreliably) passes through main hook, so install that
 		s_MainEventHook();
 		// since it's installed, prevent it from being installed again
-		s_MainEventHook = NULL;
+		s_MainEventHook = nullptr;
 	}
 
 	// additional hook to overcome game's failure to consistently mark this event type
@@ -448,7 +448,7 @@ void EventCallback::Confirm()
 class EventHandlerCaller : public InternalFunctionCaller
 {
 public:
-	EventHandlerCaller(Script* script, EventInfo* eventInfo, void* arg0, void* arg1) : InternalFunctionCaller(script, NULL), m_eventInfo(eventInfo)
+	EventHandlerCaller(Script* script, EventInfo* eventInfo, void* arg0, void* arg1) : InternalFunctionCaller(script, nullptr), m_eventInfo(eventInfo)
 	{
 		UInt8 numArgs = 2;
 		if (!arg1)
@@ -692,7 +692,7 @@ bool SetHandler(const char* eventName, EventCallback& handler)
 				(*info->installHook)();
 			}
 			// mark event as having had its hook installed
-			info->installHook = NULL;
+			info->installHook = nullptr;
 		}
 
 		if (!info->callbacks.Empty())
@@ -851,7 +851,7 @@ void HandleNVSEMessage(UInt32 msgID, void* data)
 {
 	const UInt32 eventID = EventIDForMessage(msgID);
 	if (eventID != kEventID_INVALID)
-		HandleEvent(eventID, data, NULL);
+		HandleEvent(eventID, data, nullptr);
 }
 
 bool DoesFormMatchFilter(TESForm* form, TESForm* filter, const UInt32 recursionLevel = 0)
@@ -1088,7 +1088,7 @@ bool DispatchUserDefinedEvent (const char* eventName, Script* sender, UInt32 arg
 
 	// populate args array
 	arr->SetElementString("eventName", eventName);
-	if (senderName == NULL)
+	if (senderName == nullptr)
 	{
 		if (sender)
 			senderName = DataHandler::Get()->GetNthModName (sender->GetModIndex ());
@@ -1099,7 +1099,7 @@ bool DispatchUserDefinedEvent (const char* eventName, Script* sender, UInt32 arg
 	arr->SetElementString("eventSender", senderName);
 
 	// dispatch
-	HandleEvent(eventID, (void*)argsArrayId, NULL);
+	HandleEvent(eventID, (void*)argsArrayId, nullptr);
 	return true;
 }
 
@@ -1113,13 +1113,13 @@ void Tick()
 	// Clear callbacks pending removal.
 	s_deferredRemoveList.Clear();
 
-	s_lastObj = NULL;
-	s_lastTarget = NULL;
+	s_lastObj = nullptr;
+	s_lastTarget = nullptr;
 	s_lastEvent = NULL;
-	s_lastOnHitWithActor = NULL;
-	s_lastOnHitWithWeapon = NULL;
-	s_lastOnHitVictim = NULL;
-	s_lastOnHitAttacker = NULL;
+	s_lastOnHitWithActor = nullptr;
+	s_lastOnHitWithWeapon = nullptr;
+	s_lastOnHitVictim = nullptr;
+	s_lastOnHitAttacker = nullptr;
 }
 
 void Init()
