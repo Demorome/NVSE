@@ -509,9 +509,9 @@ std::unique_ptr<ScriptToken> EventCallback::InvokeRaw([[maybe_unused]] EventInfo
 	return std::visit(overloaded{
 		   [args, &eventInfo, thisObj](const LambdaManager::Maybe_Lambda& script)
 		   {
-			   InternalFunctionCaller caller(script.Get(), thisObj);
-			   caller.SetArgsRaw(eventInfo.numParams, args);
-			   return UserFunctionManager::Call(std::move(caller));
+		   		InternalFunctionCaller caller(script.Get(), thisObj);
+				caller.SetArgsRaw(eventInfo.numParams, args);
+		   		return UserFunctionManager::Call(std::move(caller));
 		   },
 		   [args, thisObj](const EventHandler handler) -> std::unique_ptr<ScriptToken>
 		   {
@@ -1051,6 +1051,10 @@ bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
 	for (int i = 0; i < eventInfo.numParams; ++i)
 		params->push_back(va_arg(paramList, void*));
 	
+	ICriticalSection eventStackLock;	//unsure if needed
+	eventStackLock.Enter();
+	s_eventStack.Push(eventInfo.evName);
+	eventStackLock.Leave();	//avoid lock overhead
 
 	for (auto iter = eventInfo.callbacks.Begin(); !iter.End(); ++iter)
 	{
@@ -1066,6 +1070,11 @@ bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
 		callback.InvokeRaw(eventInfo, params->data(), thisObj);
 	}
 	va_end(paramList);
+
+	eventStackLock.Enter();
+	s_eventStack.Pop();
+	eventStackLock.Leave();
+
 	return true;	
 }
 
