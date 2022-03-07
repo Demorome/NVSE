@@ -623,12 +623,16 @@ bool ExtractEventCallback(ExpressionEvaluator &eval, EventManager::EventCallback
 						if (basicToken && BasicTokenToElem(basicToken.get(), element))
 						{
 							auto const mapIndex = static_cast<UInt32>(index);
-							if (outCallback.filters.contains(mapIndex))
+							if (mapIndex == 0) [[unlikely]]
 							{
-								eval.Error("Event filter index %u appears more than once in %s call.", mapIndex, funcName);
+								eval.Error("Invalid index 0 passed to %s (indices start from 1)", funcName);
 								continue;
 							}
-							outCallback.filters.insert({ mapIndex, std::move(element) });
+							if (const auto [it, success] = outCallback.filters.insert({ mapIndex, std::move(element) }); 
+								!success) [[unlikely]]
+							{
+								eval.Error("Event filter index %u appears more than once in %s call.", mapIndex, funcName);
+							}
 						}
 					}
 				}

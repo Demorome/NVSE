@@ -999,13 +999,8 @@ bool DoFiltersMatch(const EventInfo& eventInfo, const EventCallback& callback, c
 {
 	for (auto& [index, filter] : callback.filters)
 	{
-		if (index == 0)
-		{
-			ShowRuntimeError(callback.TryGetScript(), "Invalid index 0 passed to SetEventHandler (indices start from 1)");
-			continue;
-		}
 		auto const zeroBasedIndex = index - 1;
-		if (zeroBasedIndex > params->size() - 1)
+		if (zeroBasedIndex > params->size() - 1) [[unlikely]]
 		{
 			ShowRuntimeError(callback.TryGetScript(), "Index %d passed to SetEventHandler exceeds number of arguments provided by event %s (number of args: %d)",
 				index, eventInfo.evName, params->size());
@@ -1017,7 +1012,7 @@ bool DoFiltersMatch(const EventInfo& eventInfo, const EventCallback& callback, c
 		void* param = params->at(zeroBasedIndex);
 		if (filterVarType != paramVarType)
 		{
-			if (filterDataType != kDataType_Array)
+			if (filterDataType != kDataType_Array) [[unlikely]]
 			{
 				ShowRuntimeError(callback.TryGetScript(), "Filter passed to SetEventHandler does not match type passed to event at index %d (%s != %s)",
 					index, DataTypeToString(filterDataType), VariableTypeToName(paramVarType));
