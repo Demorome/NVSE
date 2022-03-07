@@ -586,7 +586,7 @@ bool Cmd_GetCallingScript_Execute(COMMAND_ARGS)
 
 static constexpr auto maxEventNameLen = 0x20;
 
-bool ExtractEventCallback(ExpressionEvaluator &eval, EventManager::EventCallback &outCallback, char *outName)
+bool ExtractEventCallback(ExpressionEvaluator &eval, EventManager::EventCallback &outCallback, char *outName, const char* funcName)
 {
 	if (eval.ExtractArgs() && eval.NumArgs() >= 2)
 	{
@@ -625,7 +625,7 @@ bool ExtractEventCallback(ExpressionEvaluator &eval, EventManager::EventCallback
 							auto const mapIndex = static_cast<UInt32>(index);
 							if (outCallback.filters.contains(mapIndex))
 							{
-								eval.Error("Event filter index %u appears more than once in Set/RemoveEventHandler call.", mapIndex);
+								eval.Error("Event filter index %u appears more than once in %s call.", mapIndex, funcName);
 								continue;
 							}
 							outCallback.filters.insert({ mapIndex, std::move(element) });
@@ -661,9 +661,8 @@ bool Cmd_SetEventHandler_Execute(COMMAND_ARGS)
 	ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 	EventManager::EventCallback callback;
 	char eventName[maxEventNameLen];
-	if (ExtractEventCallback(eval, callback, eventName) && ProcessEventHandler(eventName, callback, true))
-		*result = 1.0;
-
+	*result = (ExtractEventCallback(eval, callback, eventName, "SetEventHandler") 
+		&& ProcessEventHandler(eventName, callback, true));
 	return true;
 }
 
@@ -672,9 +671,8 @@ bool Cmd_RemoveEventHandler_Execute(COMMAND_ARGS)
 	ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 	EventManager::EventCallback callback;
 	char eventName[maxEventNameLen];
-	if (ExtractEventCallback(eval, callback, eventName) && ProcessEventHandler(eventName, callback, false))
-		*result = 1.0;
-
+	*result = (ExtractEventCallback(eval, callback, eventName, "RemoveEventHandler")
+		&& ProcessEventHandler(eventName, callback, false));
 	return true;
 }
 
