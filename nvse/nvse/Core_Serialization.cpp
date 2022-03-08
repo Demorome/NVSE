@@ -6,6 +6,7 @@
 #include "StringVar.h"
 #include "ArrayVar.h"
 #include "Commands_Script.h"
+#include "EventManager.h"
 #include "ScriptTokens.h"
 
 /*************************
@@ -121,6 +122,15 @@ void Core_PreLoadCallback(void * reserved)
 	g_callForInfos.clear();
 	g_callAfterInfos.clear();
 	g_callWhenInfos.clear();
+
+	for (auto iter = EventManager::s_eventInfos.begin(); iter != EventManager::s_eventInfos.end(); ++iter)
+	{
+		EventManager::EventInfo& info = iter.Get();
+		if (info.flags & NVSEEventManagerInterface::kFlag_FlushOnLoad)
+		{
+			iter.Remove(true);
+		}
+	}
 	
 	g_ArrayMap.Reset();
 	g_StringMap.Reset();

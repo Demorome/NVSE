@@ -37,8 +37,6 @@ enum {
 	kEventMask_OnActivate		= 0x01000000,		// special case as OnActivate has no event mask
 };
 
-typedef LinkedList<EventCallback>	CallbackList;
-
 #if _DEBUG
 Map<const char*, UInt32> s_eventNameToID(0x40);
 #else
@@ -50,84 +48,48 @@ UInt32 EventIDForString(const char* eventStr)
 	return idPtr ? *idPtr : kEventID_INVALID;
 }
 
-struct EventInfo
-{
-	EventInfo (const char *name_, UInt8* params_, UInt8 nParams_, UInt32 eventMask_, EventHookInstaller* installer_)
-		: evName(name_), paramTypes(params_), numParams(nParams_), eventMask(eventMask_), installHook(installer_)
-	{}
-
-	EventInfo (const char *name_, UInt8 * params_, UInt8 numParams_) : evName(name_), paramTypes(params_), numParams(numParams_), eventMask(0), installHook(nullptr){}
-
-	EventInfo () : evName(""), paramTypes(nullptr), numParams(0), eventMask(0), installHook(nullptr){}
-
-	EventInfo(const EventInfo& other) = default;
-
-	EventInfo& operator=(const EventInfo& other)
-	{
-		if (this == &other)
-			return *this;
-		evName = other.evName;
-		paramTypes = other.paramTypes;
-		numParams = other.numParams;
-		callbacks = other.callbacks;
-		eventMask = other.eventMask;
-		installHook = other.installHook;
-		return *this;
-	}
-
-	const char			*evName;			// must be lowercase
-	UInt8				*paramTypes;
-	UInt8				numParams;
-	UInt32				eventMask;
-	CallbackList		callbacks;
-	EventHookInstaller	*installHook;	// if a hook is needed for this event type, this will be non-null. 
-										// install it once and then set *installHook to NULL. Allows multiple events
-										// to use the same hook, installing it only once.
-	
-};
-
 // hook installers
 static EventHookInstaller s_MainEventHook = InstallHook;
 static EventHookInstaller s_ActivateHook = InstallActivateHook;
 static EventHookInstaller s_ActorEquipHook = InstallOnActorEquipHook;
 
 // event handler param lists
-static UInt8 kEventParams_GameEvent[2] =
+static Script::VariableType kEventParams_GameEvent[2] =
 {
 	Script::eVarType_Ref, Script::eVarType_Ref
 };
 
-static UInt8 kEventParams_OneRef[1] =
+static Script::VariableType kEventParams_OneRef[1] =
 {
 	Script::eVarType_Ref,
 };
 
-static UInt8 kEventParams_OneString[1] =
+static Script::VariableType kEventParams_OneString[1] =
 {
 	Script::eVarType_String
 };
 
-static UInt8 kEventParams_OneInteger[1] =
+static Script::VariableType kEventParams_OneInteger[1] =
 {
 	Script::eVarType_Integer
 };
 
-static UInt8 kEventParams_TwoIntegers[2] =
+static Script::VariableType kEventParams_TwoIntegers[2] =
 {
 	Script::eVarType_Integer, Script::eVarType_Integer
 };
 
-static UInt8 kEventParams_OneFloat_OneRef[2] =
+static Script::VariableType kEventParams_OneFloat_OneRef[2] =
 {
 	 Script::eVarType_Float, Script::eVarType_Ref
 };
 
-static UInt8 kEventParams_OneRef_OneInt[2] =
+static Script::VariableType kEventParams_OneRef_OneInt[2] =
 {
 	Script::eVarType_Ref, Script::eVarType_Integer
 };
 
-static UInt8 kEventParams_OneArray[1] =
+static Script::VariableType kEventParams_OneArray[1] =
 {
 	Script::eVarType_Array
 };
@@ -391,9 +353,6 @@ UInt32 EventIDForMessage(UInt32 msgID)
 			return kEventID_INVALID;
 	}
 }
-
-typedef Vector<EventInfo> EventInfoList;
-static EventInfoList s_eventInfos(0x30);
 
 bool EventCallback::Equals(const EventCallback& rhs) const
 {
@@ -1134,7 +1093,8 @@ void Tick()
 
 void Init()
 {
-#define EVENT_INFO(name, params, hookInstaller, eventMask) EventManager::RegisterEventEx(name, params ? sizeof(params) : 0, params, eventMask, hookInstaller)
+#define EVENT_INFO(name, params, hookInstaller, eventMask) \
+	EventManager::RegisterEventEx(name, ((params) ? (sizeof(params) / sizeof(Script::VariableType)) : 0), params, eventMask, hookInstaller)
 	
 	EVENT_INFO("onadd", kEventParams_GameEvent, &s_MainEventHook, ScriptEventList::kEvent_OnAdd);
 	EVENT_INFO("onactorequip", kEventParams_GameEvent, &s_ActorEquipHook, ScriptEventList::kEvent_OnEquip);
@@ -1193,20 +1153,21 @@ void Init()
 
 }
 
-bool RegisterEventEx(const char* name, UInt8 numParams, UInt8* paramTypes, UInt32 eventMask = 0, EventHookInstaller* hookInstaller = nullptr)
+bool RegisterEventEx(const char* name, UInt8 numParams, Script::VariableType* paramTypes, UInt32 eventMask, 
+	EventHookInstaller* hookInstaller, NVSEEventManagerInterface::EventFlags flags)
 {
 	UInt32* idPtr;
 	if (!s_eventNameToID.Insert(name, &idPtr))
 		return false; // event with this name already exists
 	*idPtr = s_eventInfos.Size();
-	const auto event = EventInfo(name, paramTypes, numParams, eventMask, hookInstaller);
+	const auto event = EventInfo(name, paramTypes, numParams, eventMask, hookInstaller, flags);
 	s_eventInfos.Append(event);
 	return true;
 }
 
-bool RegisterEvent(const char* name, UInt8 numParams, UInt8* paramTypes)
+bool RegisterEvent(const char* name, UInt8 numParams, Script::VariableType* paramTypes, NVSEEventManagerInterface::EventFlags flags)
 {
-	return RegisterEventEx(name, numParams, paramTypes);
+	return RegisterEventEx(name, numParams, paramTypes, 0, nullptr, flags);
 }
 
 bool SetNativeEventHandler(const char* eventName, EventHandler func)

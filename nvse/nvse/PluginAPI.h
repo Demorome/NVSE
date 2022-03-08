@@ -731,7 +731,7 @@ struct NVSESerializationInterface
  *	   (1st argument will receive this filter for example)
  *	- Set an event handler for any NVSE events registered with SetEventHandler which will be called back.
  *
- *	PluginEventInfo::paramTypes needs to be statically defined
+ *	For RegisterEvent, paramTypes needs to be statically defined
  *	(i.e. the pointer to it may never become invalid).
  *  For example, a good way to define it is to make a global variable like this:
  *
@@ -757,8 +757,17 @@ struct NVSEEventManagerInterface
 {
 	typedef void (*EventHandler)(TESObjectREFR* thisObj, void* parameters);
 
+	enum EventFlags : UInt32
+	{
+		kFlags_None = 0,
+
+		//If on, will remove all set handlers for the event every game load.
+		kFlag_FlushOnLoad = 1 << 0,
+	};
+
 	// Registers a new event which can be dispatched to scripts and plugins. Returns false if event with name already exists
-	bool (*RegisterEvent)(const char* name, UInt8 numParams, UInt8* paramTypes);
+	// Assumes size of Script::VariableType enum members = UInt8
+	bool (*RegisterEvent)(const char* name, UInt8 numParams, Script::VariableType* paramTypes, EventFlags flags);
 
 	// Dispatch an event that has been registered with RegisterEvent.
 	// Variadic arguments are passed as parameters to script / function.

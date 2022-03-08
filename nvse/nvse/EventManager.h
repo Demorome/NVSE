@@ -31,6 +31,49 @@ namespace EventManager
 	struct EventInfo;
 	static constexpr auto numMaxFilters = 0x20;
 
+	class EventCallback;
+	using CallbackList = LinkedList<EventCallback>;
+
+	struct EventInfo
+	{
+		EventInfo(const char* name_, Script::VariableType* paramsTypes_, UInt8 nParams_, UInt32 eventMask_, EventHookInstaller* installer_, NVSEEventManagerInterface::EventFlags flags_)
+			: evName(name_), paramTypes(paramsTypes_), numParams(nParams_), eventMask(eventMask_), installHook(installer_), flags(flags_)
+		{}
+
+		EventInfo(const char* name_, Script::VariableType* paramsTypes_, UInt8 numParams_) : evName(name_), paramTypes(paramsTypes_), numParams(numParams_), eventMask(0), installHook(nullptr) {}
+
+		EventInfo() : evName(""), paramTypes(nullptr), numParams(0), eventMask(0), installHook(nullptr) {}
+
+		EventInfo(const EventInfo& other) = default;
+
+		EventInfo& operator=(const EventInfo& other)
+		{
+			if (this == &other)
+				return *this;
+			evName = other.evName;
+			paramTypes = other.paramTypes;
+			numParams = other.numParams;
+			callbacks = other.callbacks;
+			eventMask = other.eventMask;
+			installHook = other.installHook;
+			return *this;
+		}
+
+		const char* evName;			// must be lowercase
+		Script::VariableType* paramTypes;
+		UInt8				numParams;
+		UInt32				eventMask;
+		CallbackList		callbacks;
+		EventHookInstaller* installHook;	// if a hook is needed for this event type, this will be non-null. 
+											// install it once and then set *installHook to NULL. Allows multiple events
+											// to use the same hook, installing it only once.
+
+		NVSEEventManagerInterface::EventFlags flags = NVSEEventManagerInterface::kFlags_None;
+	};
+
+	using EventInfoList = Vector<EventInfo> ;
+	static EventInfoList s_eventInfos(0x30);
+
 	using EventHandler = NVSEEventManagerInterface::EventHandler;
 
 	enum eEventID {
@@ -166,9 +209,11 @@ namespace EventManager
 
 	void Init();
 
-	bool RegisterEventEx(const char* name, UInt8 numParams, UInt8* paramTypes, UInt32 eventMask, EventHookInstaller* hookInstaller);
+	bool RegisterEventEx(const char* name, UInt8 numParams, Script::VariableType* paramTypes, UInt32 eventMask = 0, 
+		EventHookInstaller* hookInstaller = nullptr, 
+		NVSEEventManagerInterface::EventFlags flags = NVSEEventManagerInterface::kFlags_None);
 
-	bool RegisterEvent(const char* name, UInt8 numParams, UInt8* paramTypes);
+	bool RegisterEvent(const char* name, UInt8 numParams, Script::VariableType* paramTypes, NVSEEventManagerInterface::EventFlags flags);
 	bool SetNativeEventHandler(const char* eventName, EventHandler func);
 	bool RemoveNativeEventHandler(const char* eventName, EventHandler func);
 
