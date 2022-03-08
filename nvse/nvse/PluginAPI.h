@@ -774,17 +774,6 @@ struct NVSEEventManagerInterface
 		kRetn_EarlyBreak,
 	};
 
-	void Test()
-	{
-		 auto const func = [](NVSEArrayVarInterface::Element& res) -> bool
-		 {
-			 return true;
-		 };
-
-		 DispatchEvent("d", func, nullptr);
-		
-	}
-
 	// Registers a new event which can be dispatched to scripts and plugins. Returns false if event with name already exists.
 	// Assumes size of Script::VariableType enum members = UInt8.
 	bool (*RegisterEvent)(const char* name, UInt8 numParams, Script::VariableType* paramTypes, EventFlags flags);
