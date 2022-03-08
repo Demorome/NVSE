@@ -128,7 +128,13 @@ void Core_PreLoadCallback(void * reserved)
 		EventManager::EventInfo& info = iter.Get();
 		if (info.flags & NVSEEventManagerInterface::kFlag_FlushOnLoad)
 		{
-			iter.Remove(true);
+			//remove all callbacks
+			//TODO: unsure if this is correct. Do we even need to delay the callback removal here?
+			for (auto callbackIter = info.callbacks.Begin(); !callbackIter.End(); ++callbackIter)
+			{
+				auto& callback = callbackIter.Get();
+				callback.Remove(&info, callbackIter);
+			}
 		}
 	}
 	

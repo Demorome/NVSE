@@ -179,6 +179,9 @@ namespace EventManager
 
 		[[nodiscard]] bool IsRemoved() const { return removed; }
 		void SetRemoved(bool bSet) { removed = bSet; }
+		void Remove(EventInfo* eventInfo, LinkedList<EventCallback>::Iterator& iter);
+
+
 		[[nodiscard]] bool Equals(const EventCallback& rhs) const;	// compare, return true if the two handlers are identical
 
 		[[nodiscard]] Script* TryGetScript() const;

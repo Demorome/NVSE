@@ -784,8 +784,6 @@ struct NVSEEventManagerInterface
 	// If the callback returns false, then dispatching for the event will end prematurely.
 	DispatchReturn (*DispatchEvent)(const char* eventName, DispatchCallback resultCallback, TESObjectREFR* thisObj, ...);
 
-	//TODO: DumpRegisteredEventHandlers function for debugging (not here tho)
-
 	// Similar to script function SetEventHandler, allows you to set a native function that gets called back on events
 	bool (*SetNativeEventHandler)(const char* eventName, EventHandler func);
 

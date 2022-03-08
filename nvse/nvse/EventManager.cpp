@@ -550,6 +550,16 @@ struct DeferredRemoveCallback
 typedef Stack<DeferredRemoveCallback> DeferredRemoveList;
 DeferredRemoveList s_deferredRemoveList;
 
+void EventCallback::Remove(EventInfo* eventInfo, LinkedList<EventCallback>::Iterator& iter)
+{
+	SetRemoved(true);
+	if (!pendingRemove)
+	{
+		pendingRemove = true;
+		s_deferredRemoveList.Push(eventInfo, iter);
+	}
+}
+
 enum class RefState {NotSet, Invalid, Valid};
 
 // Deprecated in favor of EventManager::DispatchEvent
@@ -759,13 +769,7 @@ bool RemoveHandler(const char* id, const EventCallback& handler)
 				if (handler.object && (handler.object != callback.object))
 					continue;
 
-				callback.SetRemoved(true);
-
-				if (!callback.pendingRemove)
-				{
-					callback.pendingRemove = true;
-					s_deferredRemoveList.Push(eventInfo, iter);
-				}
+				callback.Remove(eventInfo, iter);
 
 				bRemovedAtLeastOne = true;
 			}
