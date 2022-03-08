@@ -760,7 +760,8 @@ struct NVSEEventManagerInterface
 	// Registers a new event which can be dispatched to scripts and plugins. Returns false if event with name already exists
 	bool (*RegisterEvent)(const char* name, UInt8 numParams, UInt8* paramTypes);
 
-	// Dispatch an event that has been registered with RegisterEvent - variadic arguments are passed as parameters to script / function
+	// Dispatch an event that has been registered with RegisterEvent.
+	// Variadic arguments are passed as parameters to script / function.
 	bool (*DispatchEvent)(const char* eventName, TESObjectREFR* thisObj, ...);
 
 	// Similar to script function SetEventHandler, allows you to set a native function that gets called back on events
@@ -978,7 +979,7 @@ struct PluginScriptToken
 
 	NVSEArrayVarInterface::Array *GetArrayVar()
 	{
-		return (NVSEArrayVarInterface::Array*)s_expEvalUtils.ScriptTokenGetArrayID(this);
+		return reinterpret_cast<NVSEArrayVarInterface::Array*>(s_expEvalUtils.ScriptTokenGetArrayID(this));
 	}
 
 	UInt32 GetActorValue()
