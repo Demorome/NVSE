@@ -5,6 +5,8 @@
 
 #if RUNTIME
 #include "GameAPI.h"
+#else
+#include "GameScript.h"
 #endif
 
 struct CommandInfo;
@@ -735,7 +737,7 @@ struct NVSESerializationInterface
  *	(i.e. the pointer to it may never become invalid).
  *  For example, a good way to define it is to make a global variable like this:
  *
- *	    static UInt8 s_MyEventParams[] = { Script::eVarType_Ref, Script::eVarType_String };
+ *	    static Script::VariableType s_MyEventParams[] = { Script::eVarType_Ref, Script::eVarType_String };
  *
  *	Then you can pass it into PluginEventInfo like this:
  *
