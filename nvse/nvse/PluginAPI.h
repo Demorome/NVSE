@@ -5,8 +5,6 @@
 
 #if RUNTIME
 #include "GameAPI.h"
-#else
-#include "GameScript.h"
 #endif
 
 struct CommandInfo;
@@ -725,6 +723,7 @@ struct NVSESerializationInterface
 	void	(*SkipNBytes)(UInt32 byteNum);
 };
 
+#ifdef RUNTIME
 /**** Event API docs  *******************************************************************************************
  *  This interface allows you to
  *	- Register a new event type which can be dispatched with parameters
@@ -758,6 +757,7 @@ struct NVSESerializationInterface
 struct NVSEEventManagerInterface
 {
 	typedef void (*EventHandler)(TESObjectREFR* thisObj, void* parameters);
+	typedef bool (*DispatchCallback)(NVSEArrayVarInterface::Element& result);
 
 	enum EventFlags : UInt32
 	{
@@ -767,13 +767,35 @@ struct NVSEEventManagerInterface
 		kFlag_FlushOnLoad = 1 << 0,
 	};
 
-	// Registers a new event which can be dispatched to scripts and plugins. Returns false if event with name already exists
-	// Assumes size of Script::VariableType enum members = UInt8
+	enum DispatchReturn : int8_t
+	{
+		kRetn_Error = -1,
+		kRetn_Normal = 0,
+		kRetn_EarlyBreak,
+	};
+
+	void Test()
+	{
+		 auto const func = [](NVSEArrayVarInterface::Element& res) -> bool
+		 {
+			 return true;
+		 };
+
+		 DispatchEvent("d", func, nullptr);
+		
+	}
+
+	// Registers a new event which can be dispatched to scripts and plugins. Returns false if event with name already exists.
+	// Assumes size of Script::VariableType enum members = UInt8.
 	bool (*RegisterEvent)(const char* name, UInt8 numParams, Script::VariableType* paramTypes, EventFlags flags);
 
 	// Dispatch an event that has been registered with RegisterEvent.
 	// Variadic arguments are passed as parameters to script / function.
-	bool (*DispatchEvent)(const char* eventName, TESObjectREFR* thisObj, ...);
+	// If callback is not null, then it is called for each event handler that is dispatched, which allows checking the result of each dispatch.
+	// If the callback returns false, then dispatching for the event will end prematurely.
+	DispatchReturn (*DispatchEvent)(const char* eventName, DispatchCallback resultCallback, TESObjectREFR* thisObj, ...);
+
+	//TODO: DumpRegisteredEventHandlers function for debugging (not here tho)
 
 	// Similar to script function SetEventHandler, allows you to set a native function that gets called back on events
 	bool (*SetNativeEventHandler)(const char* eventName, EventHandler func);
@@ -781,6 +803,7 @@ struct NVSEEventManagerInterface
 	// Same as script function RemoveEventHandler but for native functions
 	bool (*RemoveNativeEventHandler)(const char* eventName, EventHandler func);
 };
+#endif
 
 struct PluginInfo
 {

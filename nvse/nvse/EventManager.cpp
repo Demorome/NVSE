@@ -988,18 +988,18 @@ bool DoFiltersMatch(const EventInfo& eventInfo, const EventCallback& callback, c
 	return true;
 }
 
-bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
+DispatchReturn DispatchEvent(const char* eventName, DispatchCallback resultCallback, TESObjectREFR* thisObj, ...)
 {
 	const auto eventId = EventIDForString(eventName);
 	if (eventId == static_cast<UInt32>(kEventID_INVALID))
-		return false;
+		return DispatchReturn::kRetn_Error;
 	EventInfo& eventInfo = s_eventInfos[eventId];
 
 	va_list paramList;
 	va_start(paramList, thisObj);
 
 	if (eventInfo.numParams > numMaxFilters)
-		return false;
+		return DispatchReturn::kRetn_Error;
 
 	FilterStack params;
 	for (int i = 0; i < eventInfo.numParams; ++i)
@@ -1010,6 +1010,7 @@ bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
 	s_eventStack.Push(eventInfo.evName);
 	eventStackLock.Leave();	//avoid lock overhead
 
+	DispatchReturn result = DispatchReturn::kRetn_Normal;
 	for (auto iter = eventInfo.callbacks.Begin(); !iter.End(); ++iter)
 	{
 		const auto& callback = iter.Get();
@@ -1021,7 +1022,17 @@ bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
 		if (!DoFiltersMatch(eventInfo, callback, params))
 			continue;
 
-		callback.InvokeRaw(eventInfo, params->data(), thisObj);
+		auto const res = callback.InvokeRaw(eventInfo, params->data(), thisObj);
+		if (resultCallback && res)
+		{
+			NVSEArrayVarInterface::Element elem;
+			PluginAPI::BasicTokenToPluginElem(res.get(), elem);
+			if (!resultCallback(elem))
+			{
+				result = DispatchReturn::kRetn_EarlyBreak;
+				break;
+			}
+		}
 	}
 	va_end(paramList);
 
@@ -1029,7 +1040,7 @@ bool DispatchEvent(const char* eventName, TESObjectREFR* thisObj, ...)
 	s_eventStack.Pop();
 	eventStackLock.Leave();
 
-	return true;	
+	return result;
 }
 
 bool DispatchUserDefinedEvent (const char* eventName, Script* sender, UInt32 argsArrayId, const char* senderName)
