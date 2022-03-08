@@ -354,43 +354,36 @@ UInt32 EventIDForMessage(UInt32 msgID)
 	}
 }
 
-bool EventCallback::Equals(const EventCallback& rhs) const
+bool EventCallbackInfo::Equals(const EventCallbackInfo& rhs) const
 {
-	return (toCall == rhs.toCall) && (object == rhs.object) && (source == rhs.source)
+	return (object == rhs.object) && (source == rhs.source)
 	&& (filters == rhs.filters);
 }
 
-Script* EventCallback::TryGetScript() const
+Script* EventCallbackInfo::TryGetScript() const
 {
 	if (auto const maybe_lambda = std::get_if<LambdaManager::Maybe_Lambda>(&toCall))
 		return maybe_lambda->Get();
 	return nullptr;
 }
 
-bool EventCallback::HasCallbackFunc() const
-{
-	return std::visit([](auto const& vis) -> bool { return vis; }, toCall);
-}
-
-void EventCallback::TrySaveLambdaContext()
+void EventCallbackInfo::TrySaveLambdaContext()
 {
 	if (auto const maybe_lambda = std::get_if<LambdaManager::Maybe_Lambda>(&toCall))
 		maybe_lambda->TrySaveContext();
 }
 
-EventCallback::EventCallback(EventCallback&& other) noexcept: toCall(std::move(other.toCall)),
-                                                              source(other.source),
+EventCallbackInfo::EventCallbackInfo(EventCallbackInfo&& other) noexcept: source(other.source),
                                                               object(other.object),
                                                               removed(other.removed),
                                                               pendingRemove(other.pendingRemove),
                                                               filters(std::move(other.filters))
 {}
 
-EventCallback& EventCallback::operator=(EventCallback&& other) noexcept
+EventCallbackInfo& EventCallbackInfo::operator=(EventCallbackInfo&& other) noexcept
 {
 	if (this == &other)
 		return *this;
-	toCall = std::move(other.toCall);
 	source = other.source;
 	object = other.object;
 	removed = other.removed;
@@ -399,7 +392,7 @@ EventCallback& EventCallback::operator=(EventCallback&& other) noexcept
 	return *this;
 }
 
-void EventCallback::Confirm()
+void EventCallbackInfo::Confirm()
 {
 	TrySaveLambdaContext();
 }
@@ -439,7 +432,7 @@ private:
 };
 
 
-std::unique_ptr<ScriptToken> EventCallback::Invoke(EventInfo* eventInfo, void* arg0, void* arg1) const
+std::unique_ptr<ScriptToken> Invoke(const CallbackFunc& func, EventInfo* eventInfo, void* arg0, void* arg1)
 {
 	return std::visit(overloaded
 		{
@@ -460,10 +453,10 @@ std::unique_ptr<ScriptToken> EventCallback::Invoke(EventInfo* eventInfo, void* a
 				handler(nullptr, params);
 				return nullptr;
 			}
-		}, this->toCall);
+		}, func);
 }
 
-std::unique_ptr<ScriptToken> EventCallback::InvokeRaw([[maybe_unused]] EventInfo& eventInfo, void* args, TESObjectREFR* thisObj) const
+std::unique_ptr<ScriptToken> InvokeRaw(CallbackFunc& func, [[maybe_unused]] EventInfo& eventInfo, void* args, TESObjectREFR* thisObj)
 {
 	return std::visit(overloaded{
 		   [args, &eventInfo, thisObj](const LambdaManager::Maybe_Lambda& script)
@@ -477,7 +470,7 @@ std::unique_ptr<ScriptToken> EventCallback::InvokeRaw([[maybe_unused]] EventInfo
 			   handler(thisObj, args);
 			   return nullptr;
 		   },
-		}, this->toCall);
+		}, func);
 }
 
 bool IsValidReference(void* refr)
@@ -505,23 +498,23 @@ Stack<const char*> s_eventStack;
 // Only used in the deprecated HandleEvent.
 struct DeferredCallback
 {
-	EventCallback		*callback;	//assume this contains a Script* CallbackFunc.
+	EventCallback		*callback;
 	void				*arg0;
 	void				*arg1;
 	EventInfo			*eventInfo;
 
-	DeferredCallback(EventCallback *pCallback, void *_arg0, void *_arg1, EventInfo *_eventInfo) :
+	DeferredCallback(EventCallback*pCallback, void *_arg0, void *_arg1, EventInfo *_eventInfo) :
 		callback(pCallback), arg0(_arg0), arg1(_arg1), eventInfo(_eventInfo) {}
 
 	~DeferredCallback()
 	{
-		if (callback->removed)
+		if (callback->second.removed)
 			return;
 
 		// assume callback is owned by a global; prevent data race.
 		ScopedLock lock(s_criticalSection);
 
-		callback->Invoke(eventInfo, arg0, arg1);
+		Invoke(callback->first, eventInfo, arg0, arg1);
 	}
 };
 
@@ -531,26 +524,26 @@ DeferredCallbackList s_deferredCallbacks;
 struct DeferredRemoveCallback
 {
 	EventInfo				*eventInfo;
-	CallbackList::Iterator	iterator;
+	EventCallbackMap::iterator	iterator;
 
-	DeferredRemoveCallback(EventInfo *pEventInfo, const CallbackList::Iterator &iter) : eventInfo(pEventInfo), iterator(iter) {}
+	DeferredRemoveCallback(EventInfo *pEventInfo, const EventCallbackMap::iterator iter) : eventInfo(pEventInfo), iterator(iter) {}
 
 	~DeferredRemoveCallback()
 	{
-		if (iterator.Get().removed)
+		if (iterator->second.removed)
 		{
-			eventInfo->callbacks.Remove(iterator);
-			if (eventInfo->callbacks.Empty() && eventInfo->eventMask)
+			eventInfo->callbacks.erase(iterator);
+			if (eventInfo->callbacks.empty() && eventInfo->eventMask)
 				s_eventsInUse &= ~eventInfo->eventMask;
 		}
-		else iterator.Get().pendingRemove = false;
+		else iterator->second.pendingRemove = false;
 	}
 };
 
 typedef Stack<DeferredRemoveCallback> DeferredRemoveList;
 DeferredRemoveList s_deferredRemoveList;
 
-void EventCallback::Remove(EventInfo* eventInfo, LinkedList<EventCallback>::Iterator& iter)
+void EventCallbackInfo::Remove(EventInfo* eventInfo, LinkedList<EventCallbackInfo>::Iterator& iter)
 {
 	SetRemoved(true);
 	if (!pendingRemove)
@@ -567,26 +560,25 @@ void __stdcall HandleEvent(UInt32 id, void* arg0, void* arg1)
 {
 	ScopedLock lock(s_criticalSection);
 	EventInfo* eventInfo = &s_eventInfos[id];
-	if (eventInfo->callbacks.Empty()) return;
 
 	auto isArg0Valid = RefState::NotSet;
-	for (auto iter = eventInfo->callbacks.Begin(); !iter.End(); ++iter)
+	for (auto &callback : eventInfo->callbacks)
 	{
-		EventCallback &callback = iter.Get();
+		auto& [func, info] = callback;
 
-		if (callback.IsRemoved())
+		if (info.IsRemoved())
 			continue;
 
 		// Check filters
-		if (callback.source && arg0 != callback.source && eventInfo->numParams && eventInfo->paramTypes[0] == Script::eVarType_Ref)
+		if (info.source && arg0 != info.source && eventInfo->numParams && eventInfo->paramTypes[0] == Script::eVarType_Ref)
 		{
 			if (isArg0Valid == RefState::NotSet)
 				isArg0Valid = IsValidReference(arg0) ? RefState::Valid : RefState::Invalid;
-			if (isArg0Valid == RefState::Invalid || static_cast<TESObjectREFR*>(arg0)->baseForm != callback.source)
+			if (isArg0Valid == RefState::Invalid || static_cast<TESObjectREFR*>(arg0)->baseForm != info.source)
 				continue;
 		}
 
-		if (callback.object && (callback.object != arg1))
+		if (info.object && (info.object != arg1))
 			continue;
 
 		if (GetCurrentThreadId() != g_mainThreadID)
@@ -596,7 +588,7 @@ void __stdcall HandleEvent(UInt32 id, void* arg0, void* arg1)
 		}
 		else
 		{
-			callback.Invoke(eventInfo, arg0, arg1);
+			Invoke(func, eventInfo, arg0, arg1);
 		}
 	}
 }
@@ -630,7 +622,7 @@ bool SetHandler(const char* eventName, EventCallback& handler)
 			const auto formList = static_cast<BGSListForm*>(handler.source);
 			for (tList<TESForm>::Iterator iter = formList->list.Begin(); !iter.End(); ++iter)
 			{
-				EventCallback listHandler(script, iter.Get(), handler.object);
+				EventCallbackInfo listHandler(script, iter.Get(), handler.object);
 				recursiveLevel++;
 				if (SetHandler(eventName, listHandler)) setted++;
 				recursiveLevel--;
@@ -644,7 +636,7 @@ bool SetHandler(const char* eventName, EventCallback& handler)
 			const auto formList = static_cast<BGSListForm*>(handler.object);
 			for (tList<TESForm>::Iterator iter = formList->list.Begin(); !iter.End(); ++iter)
 			{
-				EventCallback listHandler(script, handler.source, iter.Get());
+				EventCallbackInfo listHandler(script, handler.source, iter.Get());
 				recursiveLevel++;
 				if (SetHandler(eventName, listHandler)) setted++;
 				recursiveLevel--;
@@ -681,15 +673,18 @@ bool SetHandler(const char* eventName, EventCallback& handler)
 			info->installHook = nullptr;
 		}
 
-		if (!info->callbacks.Empty())
+		if (!info->callbacks.empty())
 		{
 			// if an existing handler matches this one exactly, don't duplicate it
-			for (auto iter = info->callbacks.Begin(); !iter.End(); ++iter)
+			//TODO: change loop to "for-each that has the same callbackFunc"
+
+			auto range = info->callbacks.equal_range(2);
+			for (auto &[func, callbackInfo] : )
 			{
-				if (iter.Get().Equals(handler))
+				if (callbackInfo.Equals(handler))
 				{
 					// may be re-adding a previously removed handler, so clear the Removed flag
-					iter.Get().SetRemoved(false);
+					callbackInfo.SetRemoved(false);
 					return false;
 				}
 			}
@@ -706,7 +701,7 @@ bool SetHandler(const char* eventName, EventCallback& handler)
 	return false; 
 }
 
-bool RemoveHandler(const char* id, const EventCallback& handler)
+bool RemoveHandler(const char* id, const EventCallbackInfo& handler)
 {
 	if (!handler.HasCallbackFunc())
 		return false;
@@ -723,7 +718,7 @@ bool RemoveHandler(const char* id, const EventCallback& handler)
 			for (tList<TESForm>::Iterator iter = formList->list.Begin(); !iter.End(); ++iter)
 			{
 
-				EventCallback listHandler(script, iter.Get(), handler.object);
+				EventCallbackInfo listHandler(script, iter.Get(), handler.object);
 				recursiveLevel++;
 				if (RemoveHandler(id, listHandler)) removed++;
 				recursiveLevel--;
@@ -737,7 +732,7 @@ bool RemoveHandler(const char* id, const EventCallback& handler)
 			const auto formList = static_cast<BGSListForm*>(handler.object);
 			for (tList<TESForm>::Iterator iter = formList->list.Begin(); !iter.End(); ++iter)
 			{
-				EventCallback listHandler(script, handler.source, iter.Get());
+				EventCallbackInfo listHandler(script, handler.source, iter.Get());
 				recursiveLevel++;
 				if (RemoveHandler(id, listHandler)) removed++;
 				recursiveLevel--;
@@ -754,25 +749,22 @@ bool RemoveHandler(const char* id, const EventCallback& handler)
 	if (eventType < s_eventInfos.Size())
 	{
 		EventInfo *eventInfo = &s_eventInfos[eventType];
-		if (!eventInfo->callbacks.Empty())
+		for (auto iter = eventInfo->callbacks.Begin(); !iter.End(); ++iter)
 		{
-			for (auto iter = eventInfo->callbacks.Begin(); !iter.End(); ++iter)
-			{
-				EventCallback &callback = iter.Get();
+			EventCallbackInfo &callback = iter.Get();
 
-				if (handler.toCall != callback.toCall)
-					continue;
+			if (handler.toCall != callback.toCall)
+				continue;
 
-				if (handler.source && (handler.source != callback.source))
-					continue;
+			if (handler.source && (handler.source != callback.source))
+				continue;
 
-				if (handler.object && (handler.object != callback.object))
-					continue;
+			if (handler.object && (handler.object != callback.object))
+				continue;
 
-				callback.Remove(eventInfo, iter);
+			callback.Remove(eventInfo, iter);
 
-				bRemovedAtLeastOne = true;
-			}
+			bRemovedAtLeastOne = true;
 		}
 	}
 	
@@ -852,7 +844,7 @@ bool DoesFormMatchFilter(TESForm* form, TESForm* filter, const UInt32 recursionL
 	return false;
 }
 
-bool DoDeprecatedFiltersMatch(const EventInfo& eventInfo, const EventCallback& callback, const FilterStack& params)
+bool DoDeprecatedFiltersMatch(const EventInfo& eventInfo, const EventCallbackInfo& callback, const FilterStack& params)
 {
 	if (!callback.source && !callback.object)
 		return true;
@@ -925,7 +917,7 @@ bool DoesFilterMatch(const ArrayElement& sourceFilter, void* param)
 	return true;
 }
 
-bool DoesParamMatchFiltersInArray(const EventCallback& callback, const EventCallback::Filter& filter, Script::VariableType paramType, void* param)
+bool DoesParamMatchFiltersInArray(const EventCallbackInfo& callback, const EventCallbackInfo::Filter& filter, Script::VariableType paramType, void* param)
 {
 
 	ArrayID arrayFiltersId{};
@@ -958,7 +950,7 @@ bool DoesParamMatchFiltersInArray(const EventCallback& callback, const EventCall
 	return false;
 }
 
-bool DoFiltersMatch(const EventInfo& eventInfo, const EventCallback& callback, const FilterStack& params)
+bool DoFiltersMatch(const EventInfo& eventInfo, const EventCallbackInfo& callback, const FilterStack& params)
 {
 	for (auto& [index, filter] : callback.filters)
 	{
@@ -1187,17 +1179,17 @@ bool RegisterEvent(const char* name, UInt8 numParams, Script::VariableType* para
 
 bool SetNativeEventHandler(const char* eventName, EventHandler func)
 {
-	EventCallback event(func);
+	EventCallbackInfo event(func);
 	return SetHandler(eventName, event);
 }
 
 bool RemoveNativeEventHandler(const char* eventName, EventHandler func)
 {
-	const EventCallback event(func);
+	const EventCallbackInfo event(func);
 	return RemoveHandler(eventName, event);
 }
 
-bool EventHandlerExist(const char* ev, const EventCallback& handler)
+bool EventHandlerExist(const char* ev, const EventCallbackInfo& handler)
 {
 	ScopedLock lock(s_criticalSection);
 	const UInt32 eventType = EventIDForString(ev);

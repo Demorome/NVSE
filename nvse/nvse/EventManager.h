@@ -28,51 +28,7 @@ namespace EventManager
 {
 	extern Stack<const char*> s_eventStack;
 
-	struct EventInfo;
 	static constexpr auto numMaxFilters = 0x20;
-
-	class EventCallback;
-	using CallbackList = LinkedList<EventCallback>;
-
-	struct EventInfo
-	{
-		EventInfo(const char* name_, Script::VariableType* paramsTypes_, UInt8 nParams_, UInt32 eventMask_, EventHookInstaller* installer_, NVSEEventManagerInterface::EventFlags flags_)
-			: evName(name_), paramTypes(paramsTypes_), numParams(nParams_), eventMask(eventMask_), installHook(installer_), flags(flags_)
-		{}
-
-		EventInfo(const char* name_, Script::VariableType* paramsTypes_, UInt8 numParams_) : evName(name_), paramTypes(paramsTypes_), numParams(numParams_), eventMask(0), installHook(nullptr) {}
-
-		EventInfo() : evName(""), paramTypes(nullptr), numParams(0), eventMask(0), installHook(nullptr) {}
-
-		EventInfo(const EventInfo& other) = default;
-
-		EventInfo& operator=(const EventInfo& other)
-		{
-			if (this == &other)
-				return *this;
-			evName = other.evName;
-			paramTypes = other.paramTypes;
-			numParams = other.numParams;
-			callbacks = other.callbacks;
-			eventMask = other.eventMask;
-			installHook = other.installHook;
-			return *this;
-		}
-
-		const char* evName;			// must be lowercase
-		Script::VariableType* paramTypes;
-		UInt8				numParams;
-		UInt32				eventMask;
-		CallbackList		callbacks;
-		EventHookInstaller* installHook;	// if a hook is needed for this event type, this will be non-null. 
-											// install it once and then set *installHook to NULL. Allows multiple events
-											// to use the same hook, installing it only once.
-
-		NVSEEventManagerInterface::EventFlags flags = NVSEEventManagerInterface::kFlags_None;
-	};
-
-	using EventInfoList = Vector<EventInfo> ;
-	static EventInfoList s_eventInfos(0x30);
 
 	using EventHandler = NVSEEventManagerInterface::EventHandler;
 	using DispatchCallback = NVSEEventManagerInterface::DispatchCallback;
@@ -139,31 +95,28 @@ namespace EventManager
 		kEventID_INVALID = 0xFFFFFFFF
 	};
 
+	struct EventInfo;
+
+	//If variant is Maybe_Lambda, must try to capture lambda context once the EventCallback is confirmed to stay. 
+	using CallbackFunc = std::variant<LambdaManager::Maybe_Lambda, EventHandler>;
+
+	//Call the callback...
+	std::unique_ptr<ScriptToken> Invoke(const CallbackFunc &func, EventInfo* eventInfo, void* arg0, void* arg1);
+	std::unique_ptr<ScriptToken> InvokeRaw(const CallbackFunc &func, EventInfo& eventInfo, void* args, TESObjectREFR* thisObj);
+
 	// Represents an event handler registered for an event.
-	class EventCallback
+	class EventCallbackInfo
 	{
-		void TrySaveLambdaContext();
-
 	public:
+		EventCallbackInfo() = default;
+		~EventCallbackInfo() = default;
 
-		//If variant is Maybe_Lambda, must try to capture lambda context once the EventCallback is confirmed to stay. 
-		using CallbackFunc = std::variant<LambdaManager::Maybe_Lambda, EventHandler>;
+		EventCallbackInfo(const EventCallbackInfo& other) = delete;
+		EventCallbackInfo& operator=(const EventCallbackInfo& other) = delete;
 
-		EventCallback() = default;
-		~EventCallback() = default;
-		EventCallback(Script* funcScript, TESForm* sourceFilter = nullptr, TESForm* objectFilter = nullptr)
-			: toCall(funcScript), source(sourceFilter), object(objectFilter) {}
+		EventCallbackInfo(EventCallbackInfo&& other) noexcept;
+		EventCallbackInfo& operator=(EventCallbackInfo&& other) noexcept;
 
-		EventCallback(EventHandler func, TESForm* sourceFilter = nullptr, TESForm* objectFilter = nullptr)
-			: toCall(func), source(sourceFilter), object(objectFilter) {}
-
-		EventCallback(const EventCallback& other) = delete;
-		EventCallback& operator=(const EventCallback& other) = delete;
-
-		EventCallback(EventCallback&& other) noexcept;
-		EventCallback& operator=(EventCallback&& other) noexcept;
-
-		CallbackFunc	toCall{};
 		TESForm			*source{};				// first arg to handler (reference or base form or form list)
 		TESForm			*object{};				// second arg to handler
 		bool			removed{};
@@ -179,27 +132,75 @@ namespace EventManager
 
 		[[nodiscard]] bool IsRemoved() const { return removed; }
 		void SetRemoved(bool bSet) { removed = bSet; }
-		void Remove(EventInfo* eventInfo, LinkedList<EventCallback>::Iterator& iter);
+		void Remove(EventInfo* eventInfo, LinkedList<EventCallbackInfo>::Iterator& iter);
 
+		[[nodiscard]] bool Equals(const EventCallbackInfo& rhs) const;	// compare, return true if the two handlers are identical
+	};
 
-		[[nodiscard]] bool Equals(const EventCallback& rhs) const;	// compare, return true if the two handlers are identical
+	struct EventCallback : std::pair<CallbackFunc, EventCallbackInfo>
+	{
+		using Parent = std::pair<CallbackFunc, EventCallbackInfo>;
+
+		void TrySaveLambdaContext();
 
 		[[nodiscard]] Script* TryGetScript() const;
-		[[nodiscard]] bool HasCallbackFunc() const;
 
 		//If the EventCallback is confirmed to stay, then call this to wrap up loose ends, e.g save lambda var context.
 		void Confirm();
-
-		//Call the callback...
-		//Limited to 2 args.
-		std::unique_ptr<ScriptToken> Invoke(EventInfo* eventInfo, void* arg0, void* arg1) const;
-		std::unique_ptr<ScriptToken> InvokeRaw(EventInfo& eventInfo, void* args, TESObjectREFR* thisObj) const;
 	};
 
-	bool SetHandler(const char* eventName, EventCallback& handler);
+	using EventCallbackMap = std::multimap<CallbackFunc, EventCallbackInfo>;
+
+	struct EventInfo
+	{
+		EventInfo(const char* name_, Script::VariableType* paramsTypes_, UInt8 nParams_, UInt32 eventMask_, EventHookInstaller* installer_, NVSEEventManagerInterface::EventFlags flags_)
+			: evName(name_), paramTypes(paramsTypes_), numParams(nParams_), eventMask(eventMask_), installHook(installer_), flags(flags_)
+		{}
+
+		EventInfo(const char* name_, Script::VariableType* paramsTypes_, UInt8 numParams_) : evName(name_), paramTypes(paramsTypes_), numParams(numParams_), eventMask(0), installHook(nullptr) {}
+
+		EventInfo() : evName(""), paramTypes(nullptr), numParams(0), eventMask(0), installHook(nullptr) {}
+
+		EventInfo(const EventInfo& other) = default;
+
+		EventInfo& operator=(const EventInfo& other)
+		{
+			if (this == &other)
+				return *this;
+			evName = other.evName;
+			paramTypes = other.paramTypes;
+			numParams = other.numParams;
+			callbacks = other.callbacks;
+			eventMask = other.eventMask;
+			installHook = other.installHook;
+			return *this;
+		}
+
+		const char* evName;			// must be lowercase
+		Script::VariableType* paramTypes;
+		UInt8				numParams;
+		UInt32				eventMask;
+		EventCallbackMap	callbacks;
+		EventHookInstaller* installHook;	// if a hook is needed for this event type, this will be non-null. 
+											// install it once and then set *installHook to NULL. Allows multiple events
+											// to use the same hook, installing it only once.
+
+		NVSEEventManagerInterface::EventFlags flags = NVSEEventManagerInterface::kFlags_None;
+
+		[[nodiscard]] bool FlushesOnLoad() const
+		{
+			return flags & NVSEEventManagerInterface::kFlag_FlushOnLoad;
+		}
+	};
+
+	using EventInfoList = Vector<EventInfo>;
+	static EventInfoList s_eventInfos(0x30);
+
+
+	bool SetHandler(const char* eventName, EventCallbackInfo& handler);
 
 	// removes handler only if all filters match
-	bool RemoveHandler(const char* id, const EventCallback& handler);
+	bool RemoveHandler(const char* id, const EventCallbackInfo& handler);
 
 	// handle an NVSEMessagingInterface message
 	void HandleNVSEMessage(UInt32 msgID, void* data);

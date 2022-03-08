@@ -182,8 +182,8 @@ DEFINE_COMMAND_EXP(CallWhen, "calls UDF once when a condition is met which is po
 
 static ParamInfo kNVSEParams_DumpEventHandlers[18] =
 {
-	{ "event name",			kNVSEParamType_String,	0 },
-	{ "function script",	kNVSEParamType_Form,	0 },
+	{ "event name",			kNVSEParamType_String,	1 },
+	{ "function script",	kNVSEParamType_Form,	1 },
 	{	"flags",		kNVSEParamType_Number,	1	},
 
 	{	"element",	kNVSEParamType_BasicType,	1	},
