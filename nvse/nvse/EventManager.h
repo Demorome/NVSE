@@ -97,12 +97,14 @@ namespace EventManager
 
 	struct EventInfo;
 
-	//If variant is Maybe_Lambda, must try to capture lambda context once the EventCallback is confirmed to stay. 
-	using CallbackFunc = std::variant<LambdaManager::Maybe_Lambda, EventHandler>;
+	using CallbackFunc = std::variant<Script*, EventHandler>;
+
+	//Used for the EventCallback map; will store the lambda context if needed.
+	using CallbackFunc_StoreLambda = std::variant<LambdaManager::LambdaVariableContext, EventHandler>;
 
 	//Call the callback...
-	std::unique_ptr<ScriptToken> Invoke(const CallbackFunc &func, EventInfo* eventInfo, void* arg0, void* arg1);
-	std::unique_ptr<ScriptToken> InvokeRaw(const CallbackFunc &func, EventInfo& eventInfo, void* args, TESObjectREFR* thisObj);
+	std::unique_ptr<ScriptToken> Invoke(CallbackFunc func, EventInfo* eventInfo, void* arg0, void* arg1);
+	std::unique_ptr<ScriptToken> InvokeRaw(CallbackFunc func, EventInfo& eventInfo, void* args, TESObjectREFR* thisObj);
 
 	// Represents an event handler registered for an event.
 	class EventCallbackInfo
@@ -110,6 +112,10 @@ namespace EventManager
 	public:
 		EventCallbackInfo() = default;
 		~EventCallbackInfo() = default;
+
+		EventCallbackInfo(TESForm* sourceFilter = nullptr, TESForm* objectFilter = nullptr)
+			: source(sourceFilter), object(objectFilter) {}
+
 
 		EventCallbackInfo(const EventCallbackInfo& other) = delete;
 		EventCallbackInfo& operator=(const EventCallbackInfo& other) = delete;
@@ -137,19 +143,13 @@ namespace EventManager
 		[[nodiscard]] bool Equals(const EventCallbackInfo& rhs) const;	// compare, return true if the two handlers are identical
 	};
 
-	struct EventCallback : std::pair<CallbackFunc, EventCallbackInfo>
+	/*
 	{
-		using Parent = std::pair<CallbackFunc, EventCallbackInfo>;
-
-		void TrySaveLambdaContext();
-
 		[[nodiscard]] Script* TryGetScript() const;
+	};*/
 
-		//If the EventCallback is confirmed to stay, then call this to wrap up loose ends, e.g save lambda var context.
-		void Confirm();
-	};
-
-	using EventCallbackMap = std::multimap<CallbackFunc, EventCallbackInfo>;
+	//Using LinkedList to preserve iterator validity when delaying removals.
+	using EventCallbackMap = Map<CallbackFunc_StoreLambda, LinkedList<EventCallbackInfo>>;
 
 	struct EventInfo
 	{
@@ -197,10 +197,10 @@ namespace EventManager
 	static EventInfoList s_eventInfos(0x30);
 
 
-	bool SetHandler(const char* eventName, EventCallbackInfo& handler);
+	bool SetHandler(const char* eventName, CallbackFunc func, EventCallbackInfo& callbackInfo);
 
 	// removes handler only if all filters match
-	bool RemoveHandler(const char* id, const EventCallbackInfo& handler);
+	bool RemoveHandler(const char* id, CallbackFunc func, const EventCallbackInfo& callbackInfo);
 
 	// handle an NVSEMessagingInterface message
 	void HandleNVSEMessage(UInt32 msgID, void* data);
@@ -217,8 +217,7 @@ namespace EventManager
 	void Init();
 
 	bool RegisterEventEx(const char* name, UInt8 numParams, Script::VariableType* paramTypes, UInt32 eventMask = 0, 
-		EventHookInstaller* hookInstaller = nullptr, 
-		EventFlags flags = EventFlags::kFlags_None);
+		EventHookInstaller* hookInstaller = nullptr, EventFlags flags = EventFlags::kFlags_None);
 
 	bool RegisterEvent(const char* name, UInt8 numParams, Script::VariableType* paramTypes, EventFlags flags);
 	bool SetNativeEventHandler(const char* eventName, EventHandler func);
