@@ -14,6 +14,7 @@
 #include "GameOSDepend.h"
 //#include "InventoryReference.h"
 
+#include "EventDefinitions.h"
 #include "GameData.h"
 #include "GameRTTI.h"
 #include "GameScript.h"
@@ -1169,6 +1170,7 @@ void Init()
 
 	InstallDestroyCIOSHook();	// handle a missing parameter value check.
 
+	ReadEventDefinitionsFromFile();
 }
 
 bool RegisterEventEx(const char* name, UInt8 numParams, EventFilterType* paramTypes, 

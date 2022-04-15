@@ -680,6 +680,7 @@
     <ClInclude Include="CommandTable.h" />
     <ClInclude Include="containers.h" />
     <ClInclude Include="Core_Serialization.h" />
+    <ClInclude Include="EventDefinitions.h" />
     <ClInclude Include="EventManager.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug CS|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release CS|Win32'">true</ExcludedFromBuild>
@@ -714,6 +715,7 @@
     <ClInclude Include="Hooks_Script.h" />
     <ClInclude Include="InventoryInfo.h" />
     <ClInclude Include="InventoryReference.h" />
+    <ClInclude Include="json.hpp" />
     <ClInclude Include="LambdaManager.h" />
     <ClInclude Include="Loops.h" />
     <ClInclude Include="MemoizedMap.h" />
