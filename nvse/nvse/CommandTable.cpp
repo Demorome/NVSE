@@ -1885,6 +1885,12 @@ void CommandTable::AddCommandsV6()
 	// 6.3 beta 03
 	ADD_CMD_RET(CopyIRAlt, kRetnType_Form);
 	ADD_CMD_RET(CompileScript, kRetnType_Form);
+	ADD_CMD(NamedCallAfterSeconds);
+	ADD_CMD(NamedCallAfterFrames);
+	ADD_CMD(NamedCallForSeconds);
+	ADD_CMD(NamedCallWhile);
+	ADD_CMD(NamedCallWhen);
+	ADD_CMD(NamedCallWhilePerSeconds);
 }
 
 namespace PluginAPI

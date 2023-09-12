@@ -230,6 +230,32 @@ static ParamInfo kNVSEParams_CallAfter[18] =
 	{	"element",	kNVSEParamType_BasicType,	1	},
 	//#elems should not exceed max # of UDF args.
 };
+static ParamInfo kNVSEParams_NamedCallAfter[19] =
+{
+	{	"seconds",	kNVSEParamType_Number,	0	},
+	{	"function",	kNVSEParamType_Form,	0	},
+	{	"name",		kNVSEParamType_String,	0	},
+	{	"flags",	kNVSEParamType_Number,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	//#elems should not exceed max # of UDF args.
+};
 
 static ParamInfo kParams_CallWhile_OLD[2] =
 {
@@ -262,6 +288,32 @@ static ParamInfo kNVSEParams_CallWhile[18] =
 	{	"element",	kNVSEParamType_BasicType,	1	},
 	//#elems should not exceed max # of UDF args.
 };
+static ParamInfo kNVSEParams_NamedCallWhile[19] =
+{
+	{	"function",	kNVSEParamType_Form,	0	},
+	{	"name",		kNVSEParamType_String,	0	},
+	{	"condition",	kNVSEParamType_Form,0	},
+	{	"flags",		kNVSEParamType_Number,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	//#elems should not exceed max # of UDF args.
+};
 
 DEFINE_CMD_ALT(CallAfterSeconds_OLD, CallAfter_OLD, "deprecated", 0, std::size(kParams_CallAfter_OLD), kParams_CallAfter_OLD);
 DEFINE_CMD_ALT(CallForSeconds_OLD, CallFor_OLD, "deprecated", 0, std::size(kParams_CallAfter_OLD), kParams_CallAfter_OLD);
@@ -271,8 +323,22 @@ DEFINE_COMMAND(CallWhen_OLD, "deprecated", 0, std::size(kParams_CallWhile_OLD), 
 DEFINE_CMD_ALT_EXP(CallAfterSeconds, CallAfter, "calls UDF after argument number of seconds", false, kNVSEParams_CallAfter);
 DEFINE_COMMAND_EXP(CallAfterFrames, "calls UDF after argument number of frame", false, kNVSEParams_CallAfter);
 DEFINE_CMD_ALT_EXP(CallForSeconds, CallFor, "calls UDF each frame for argument number of seconds", false, kNVSEParams_CallAfter);
+
 DEFINE_COMMAND_EXP(CallWhile, "calls UDF each frame while condition is met", false, kNVSEParams_CallWhile);
 DEFINE_COMMAND_EXP(CallWhen, "calls UDF once when a condition is met which is polled each frame", false, kNVSEParams_CallWhile);
+
+DEFINE_CMD_ALT_EXP(NamedCallAfterSeconds, NamedCallAfter, "calls named UDF after argument number of seconds", 
+	false, kNVSEParams_NamedCallAfter);
+DEFINE_COMMAND_EXP(NamedCallAfterFrames, "calls named UDF after argument number of frame", 
+	false, kNVSEParams_NamedCallAfter);
+DEFINE_CMD_ALT_EXP(NamedCallForSeconds, NamedCallFor, "calls named UDF each frame for argument number of seconds", 
+	false, kNVSEParams_NamedCallAfter);
+
+DEFINE_COMMAND_EXP(NamedCallWhile, "calls named UDF each frame while condition is met", 
+	false, kNVSEParams_NamedCallWhile);
+DEFINE_COMMAND_EXP(NamedCallWhen, "calls named UDF once when a condition is met which is polled each frame", 
+	false, kNVSEParams_NamedCallWhile);
+
 
 static ParamInfo kNVSEParams_DelayedCallWhile[19] =
 {
@@ -300,9 +366,38 @@ static ParamInfo kNVSEParams_DelayedCallWhile[19] =
 	{	"element",	kNVSEParamType_BasicType,	1	},
 	//#elems should not exceed max # of UDF args.
 };
+static ParamInfo kNVSEParams_NamedDelayedCallWhile[20] =
+{
+	{	"seconds",	kNVSEParamType_Number,	0	},
+	{	"function",	kNVSEParamType_Form,	0	},
+	{	"name",		kNVSEParamType_String,	0	},
+	{	"condition",	kNVSEParamType_Form,0	},
+	{	"flags",		kNVSEParamType_Number,	1	},
 
-DEFINE_COMMAND_EXP(CallWhilePerSeconds, "calls UDF every couple of seconds, until the condition UDF returns false.", false, kNVSEParams_DelayedCallWhile);
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
 
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	{	"element",	kNVSEParamType_BasicType,	1	},
+	//#elems should not exceed max # of UDF args.
+};
+
+DEFINE_COMMAND_EXP(CallWhilePerSeconds, "calls UDF every couple of seconds, until the condition UDF returns false.", 
+	false, kNVSEParams_DelayedCallWhile);
+DEFINE_COMMAND_EXP(NamedCallWhilePerSeconds, "calls named UDF every couple of seconds, until the condition UDF returns false.", 
+	false, kNVSEParams_NamedDelayedCallWhile);
 
 #if RUNTIME
 using CallArgs = std::vector<SelfOwningArrayElement>;
@@ -430,6 +525,13 @@ extern std::list<DelayedCallInfo> g_callAfterInfos;
 extern std::list<CallWhileInfo> g_callWhenInfos;
 extern std::list<DelayedCallWhileInfo> g_callWhilePerSecondsInfos;
 extern std::list<DelayedCallInfo> g_callAfterFramesInfos;
+
+extern std::unordered_map<std::string, DelayedCallInfo> g_namedCallForInfos;
+extern std::unordered_map<std::string, CallWhileInfo> g_namedCallWhileInfos;
+extern std::unordered_map<std::string, DelayedCallInfo> g_namedCallAfterInfos;
+extern std::unordered_map<std::string, CallWhileInfo> g_namedCallWhenInfos;
+extern std::unordered_map<std::string, DelayedCallWhileInfo> g_namedCallWhilePerSecondsInfos;
+extern std::unordered_map<std::string, DelayedCallInfo> g_namedCallAfterFramesInfos;
 
 void ClearDelayedCalls();
 

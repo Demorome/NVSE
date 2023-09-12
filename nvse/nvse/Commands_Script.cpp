@@ -1178,24 +1178,32 @@ bool Cmd_GetLowerPriorityEventHandlers_Execute(COMMAND_ARGS)
 
 extern float g_gameSecondsPassed;
 
-template <bool PerSecondOrPerFrame>  //if false, then it's PerFrame
-bool ExtractCallAfterInfo(ExpressionEvaluator& eval, std::list<DelayedCallInfo>& infos, ICriticalSection& cs)
+template <bool PerSecondOrPerFrame /*false = PerFrame*/, bool ExtractNamedCallback>
+std::optional<DelayedCallInfo> ExtractCallAfterInfo(ExpressionEvaluator& eval, const char** string_out = nullptr)
 {
 	auto const time = static_cast<float>(eval.Arg(0)->GetNumber());
 	Script* const callFunction = eval.Arg(1)->GetUserFunction();
 	if (!callFunction)
-		return false;
+		return {};
+
+	UInt8 nextArgNum = 2;
+	if constexpr (ExtractNamedCallback)
+	{
+		*string_out = eval.Arg(nextArgNum)->GetString();
+		++nextArgNum;
+	}
 
 	//Optional args
 	DelayedCallInfo::Mode mode = DelayedCallInfo::kMode_RunInGameModeOnly;
 	CallArgs args{};
 
 	auto const numArgs = eval.NumArgs();
-	if (numArgs > 2)
+	if (numArgs > nextArgNum)
 	{
-		mode = static_cast<DelayedCallInfo::Mode>(eval.Arg(2)->GetNumber());
-		args.reserve(numArgs - 3);
-		for (UInt32 i = 3; i < numArgs; i++)
+		mode = static_cast<DelayedCallInfo::Mode>(eval.Arg(nextArgNum)->GetNumber());
+		++nextArgNum;
+		args.reserve(numArgs - nextArgNum);
+		for (UInt32 i = nextArgNum; i < numArgs; i++)
 		{
 			if (auto const tok = eval.Arg(i))
 			{
@@ -1208,17 +1216,15 @@ bool ExtractCallAfterInfo(ExpressionEvaluator& eval, std::list<DelayedCallInfo>&
 		}
 	}
 
-	ScopedLock lock(cs);
 	if constexpr (PerSecondOrPerFrame)
 	{
-		infos.emplace_back(callFunction, g_gameSecondsPassed + time, eval.m_thisObj, mode, std::move(args));
+		return DelayedCallInfo{ callFunction, g_gameSecondsPassed + time, eval.m_thisObj, mode, std::move(args) };
 	}
 	else
 	{
 		// time = frame count
-		infos.emplace_back(callFunction, time, eval.m_thisObj, mode, std::move(args));
+		return DelayedCallInfo{ callFunction, time, eval.m_thisObj, mode, std::move(args) };
 	}
-	return true;
 }
 
 bool ExtractCallAfterInfo_OLD(COMMAND_ARGS, std::list<DelayedCallInfo>& infos, ICriticalSection& cs)
@@ -1243,7 +1249,33 @@ bool Cmd_CallAfterSeconds_Execute(COMMAND_ARGS)
 	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 		eval.ExtractArgs())
 	{
-		*result = ExtractCallAfterInfo<true>(eval, g_callAfterInfos, g_callAfterInfosCS);
+		auto optInfo = ExtractCallAfterInfo<true, false>(eval);
+		if (optInfo.has_value())
+		{
+			*result = true;
+			ScopedLock lock(g_callAfterInfosCS);
+			g_callAfterInfos.emplace_back(std::move(optInfo.value()));
+		}
+	}
+	return true;
+}
+
+std::unordered_map<std::string, DelayedCallInfo> g_namedCallAfterInfos;
+
+bool Cmd_NamedCallAfterSeconds_Execute(COMMAND_ARGS)
+{
+	*result = false; //bSuccess
+	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+		eval.ExtractArgs())
+	{
+		const char* callbackName = "";
+		auto optInfo = ExtractCallAfterInfo<true, false>(eval, &callbackName);
+		if (optInfo.has_value() && callbackName[0])
+		{
+			*result = true;
+			ScopedLock lock(g_callAfterInfosCS);
+			g_namedCallAfterInfos.insert_or_assign(callbackName, std::move(optInfo.value()));
+		}
 	}
 	return true;
 }
@@ -1262,7 +1294,33 @@ bool Cmd_CallAfterFrames_Execute(COMMAND_ARGS)
 	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 		eval.ExtractArgs())
 	{
-		*result = ExtractCallAfterInfo<false>(eval, g_callAfterFramesInfos, g_callAfterFramesInfosCS);
+		auto optInfo = ExtractCallAfterInfo<false, false>(eval);
+		if (optInfo.has_value())
+		{
+			*result = true;
+			ScopedLock lock(g_callAfterFramesInfosCS);
+			g_callAfterFramesInfos.emplace_back(std::move(optInfo.value()));
+		}
+	}
+	return true;
+}
+
+std::unordered_map<std::string, DelayedCallInfo> g_namedCallAfterFramesInfos;
+
+bool Cmd_NamedCallAfterFrames_Execute(COMMAND_ARGS)
+{
+	*result = false; //bSuccess
+	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+		eval.ExtractArgs())
+	{
+		const char* callbackName = "";
+		auto optInfo = ExtractCallAfterInfo<false, false>(eval, &callbackName);
+		if (optInfo.has_value() && callbackName[0])
+		{
+			*result = true;
+			ScopedLock lock(g_callAfterFramesInfosCS);
+			g_namedCallAfterFramesInfos.insert_or_assign(callbackName, std::move(optInfo.value()));
+		}
 	}
 	return true;
 }
@@ -1276,7 +1334,33 @@ bool Cmd_CallForSeconds_Execute(COMMAND_ARGS)
 	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 		eval.ExtractArgs())
 	{
-		*result = ExtractCallAfterInfo<true>(eval, g_callForInfos, g_callForInfosCS);
+		auto optInfo = ExtractCallAfterInfo<true, false>(eval);
+		if (optInfo.has_value())
+		{
+			*result = true;
+			ScopedLock lock(g_callForInfosCS);
+			g_callForInfos.emplace_back(std::move(optInfo.value()));
+		}
+	}
+	return true;
+}
+
+std::unordered_map<std::string, DelayedCallInfo> g_namedCallForInfos;
+
+bool Cmd_NamedCallForSeconds_Execute(COMMAND_ARGS)
+{
+	*result = false; //bSuccess
+	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+		eval.ExtractArgs())
+	{
+		const char* callbackName = "";
+		auto optInfo = ExtractCallAfterInfo<true, false>(eval, &callbackName);
+		if (optInfo.has_value() && callbackName[0])
+		{
+			*result = true;
+			ScopedLock lock(g_callForInfosCS);
+			g_namedCallForInfos.insert_or_assign(callbackName, std::move(optInfo.value()));
+		}
 	}
 	return true;
 }
@@ -1286,23 +1370,34 @@ bool Cmd_CallForSeconds_OLD_Execute(COMMAND_ARGS)
 	return true;
 }
 
-bool ExtractCallWhileInfo(ExpressionEvaluator &eval, std::list<CallWhileInfo> &infos, ICriticalSection &cs)
+template <bool ExtractNamedCallback>
+std::optional<CallWhileInfo> ExtractCallWhileInfo(ExpressionEvaluator& eval, const char** string_out = nullptr)
 {
 	Script* callFunction = eval.Arg(0)->GetUserFunction();
-	Script* conditionFunction = eval.Arg(1)->GetUserFunction();
+
+	UInt8 nextArgNum = 1;
+	if constexpr (ExtractNamedCallback)
+	{
+		*string_out = eval.Arg(nextArgNum)->GetString();
+		++nextArgNum;
+	}
+
+	Script* conditionFunction = eval.Arg(nextArgNum)->GetUserFunction();
+	++nextArgNum;
 	if (!callFunction || !conditionFunction)
-		return false;
+		return {};
 
 	//Optional args
 	CallWhileInfo::eFlags flags = CallWhileInfo::kFlags_None;
 	CallArgs args{};
 
 	auto const numArgs = eval.NumArgs();
-	if (numArgs > 2)
+	if (numArgs > nextArgNum)
 	{
-		flags = static_cast<CallWhileInfo::eFlags>(eval.Arg(2)->GetNumber());
-		args.reserve(numArgs - 3);
-		for (UInt32 i = 3; i < numArgs; i++)
+		flags = static_cast<CallWhileInfo::eFlags>(eval.Arg(nextArgNum)->GetNumber());
+		++nextArgNum;
+		args.reserve(numArgs - nextArgNum);
+		for (UInt32 i = nextArgNum; i < numArgs; i++)
 		{
 			if (auto const tok = eval.Arg(i))
 			{
@@ -1314,10 +1409,7 @@ bool ExtractCallWhileInfo(ExpressionEvaluator &eval, std::list<CallWhileInfo> &i
 				break;
 		}
 	}
-
-	ScopedLock lock(cs);
-	infos.emplace_back(callFunction, conditionFunction, eval.m_thisObj, flags, std::move(args));
-	return true;
+	return CallWhileInfo{ callFunction, conditionFunction, eval.m_thisObj, flags, std::move(args) };
 }
 bool ExtractCallWhileInfo_OLD(COMMAND_ARGS, std::list<CallWhileInfo>& infos, ICriticalSection& cs)
 {
@@ -1344,7 +1436,33 @@ bool Cmd_CallWhile_Execute(COMMAND_ARGS)
 	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 		eval.ExtractArgs())
 	{
-		*result = ExtractCallWhileInfo(eval, g_callWhileInfos, g_callWhileInfosCS);
+		auto optInfo = ExtractCallWhileInfo<false>(eval);
+		if (optInfo.has_value())
+		{
+			*result = true;
+			ScopedLock lock(g_callWhileInfosCS);
+			g_callWhileInfos.emplace_back(std::move(optInfo.value()));
+		}
+	}
+	return true;
+}
+
+std::unordered_map<std::string, CallWhileInfo> g_namedCallWhileInfos;
+
+bool Cmd_NamedCallWhile_Execute(COMMAND_ARGS)
+{
+	*result = false; //bSuccess
+	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+		eval.ExtractArgs())
+	{
+		const char* callbackName = "";
+		auto optInfo = ExtractCallWhileInfo<true>(eval, &callbackName);
+		if (optInfo.has_value() && callbackName[0])
+		{
+			*result = true;
+			ScopedLock lock(g_callWhileInfosCS);
+			g_namedCallWhileInfos.insert_or_assign(callbackName, std::move(optInfo.value()));
+		}
 	}
 	return true;
 }
@@ -1364,34 +1482,72 @@ bool Cmd_CallWhen_Execute(COMMAND_ARGS)
 	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 		eval.ExtractArgs())
 	{
-		*result = ExtractCallWhileInfo(eval, g_callWhenInfos, g_callWhenInfosCS);
+		auto optInfo = ExtractCallWhileInfo<false>(eval);
+		if (optInfo.has_value())
+		{
+			*result = true;
+			ScopedLock lock(g_callWhenInfosCS);
+			g_callWhenInfos.emplace_back(std::move(optInfo.value()));
+		}
 	}
 	return true;
 }
+
+std::unordered_map<std::string, CallWhileInfo> g_namedCallWhenInfos;
+
+bool Cmd_NamedCallWhen_Execute(COMMAND_ARGS)
+{
+	*result = false; //bSuccess
+	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+		eval.ExtractArgs())
+	{
+		const char* callbackName = "";
+		auto optInfo = ExtractCallWhileInfo<true>(eval, &callbackName);
+		if (optInfo.has_value() && callbackName[0])
+		{
+			*result = true;
+			ScopedLock lock(g_callWhenInfosCS);
+			g_namedCallWhenInfos.insert_or_assign(callbackName, std::move(optInfo.value()));
+		}
+	}
+	return true;
+}
+
 bool Cmd_CallWhen_OLD_Execute(COMMAND_ARGS)
 {
 	*result = ExtractCallWhileInfo_OLD(PASS_COMMAND_ARGS, g_callWhenInfos, g_callWhenInfosCS);
 	return true;
 }
 
-bool ExtractDelayedCallWhileInfo(ExpressionEvaluator& eval, std::list<DelayedCallWhileInfo>& infos, ICriticalSection& cs)
+template <bool ExtractNamedCallback>
+std::optional<DelayedCallWhileInfo> ExtractDelayedCallWhileInfo(ExpressionEvaluator& eval, const char** string_out = nullptr)
 {
 	float interval = eval.Arg(0)->GetNumber();
 	Script* callFunction = eval.Arg(1)->GetUserFunction();
-	Script* conditionFunction = eval.Arg(2)->GetUserFunction();
+
+	UInt8 nextArgNum = 2;
+	if constexpr (ExtractNamedCallback)
+	{
+		*string_out = eval.Arg(nextArgNum)->GetString();
+		++nextArgNum;
+	}
+
+	Script* conditionFunction = eval.Arg(nextArgNum)->GetUserFunction();
+	++nextArgNum;
 	if (!callFunction || !conditionFunction)
-		return false;
+		return {};
 
 	//Optional args
 	DelayedCallWhileInfo::eFlags flags = DelayedCallWhileInfo::kFlags_None;
 	CallArgs args{};
 
 	auto const numArgs = eval.NumArgs();
-	if (numArgs >= 4)
+	if (numArgs >= nextArgNum + 1)
 	{
-		flags = static_cast<DelayedCallWhileInfo::eFlags>(eval.Arg(3)->GetNumber());
-		args.reserve(numArgs - 4);
-		for (UInt32 i = 4; i < numArgs; i++)
+		flags = static_cast<DelayedCallWhileInfo::eFlags>(eval.Arg(nextArgNum)->GetNumber());
+		++nextArgNum;
+		args.reserve(numArgs - nextArgNum);
+		for (UInt32 i = nextArgNum; i < numArgs; i++)
 		{
 			if (auto const tok = eval.Arg(i))
 			{
@@ -1404,9 +1560,7 @@ bool ExtractDelayedCallWhileInfo(ExpressionEvaluator& eval, std::list<DelayedCal
 		}
 	}
 
-	ScopedLock lock(cs);
-	infos.emplace_back(interval, g_gameSecondsPassed, callFunction, conditionFunction, eval.m_thisObj, flags, std::move(args));
-	return true;
+	return DelayedCallWhileInfo(interval, g_gameSecondsPassed, callFunction, conditionFunction, eval.m_thisObj, flags, std::move(args));
 }
 
 std::list<DelayedCallWhileInfo> g_callWhilePerSecondsInfos;
@@ -1418,7 +1572,33 @@ bool Cmd_CallWhilePerSeconds_Execute(COMMAND_ARGS)
 	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
 		eval.ExtractArgs())
 	{
-		*result = ExtractDelayedCallWhileInfo(eval, g_callWhilePerSecondsInfos, g_callWhilePerSecondsInfosCS);
+		auto optInfo = ExtractDelayedCallWhileInfo<false>(eval);
+		if (optInfo.has_value())
+		{
+			*result = true;
+			ScopedLock lock(g_callWhilePerSecondsInfosCS);
+			g_callWhilePerSecondsInfos.emplace_back(std::move(optInfo.value()));
+		}
+	}
+	return true;
+}
+
+std::unordered_map<std::string, DelayedCallWhileInfo> g_namedCallWhilePerSecondsInfos;
+
+bool Cmd_NamedCallWhilePerSeconds_Execute(COMMAND_ARGS)
+{
+	*result = false; //bSuccess
+	if (ExpressionEvaluator eval(PASS_COMMAND_ARGS);
+		eval.ExtractArgs())
+	{
+		const char* callbackName = "";
+		auto optInfo = ExtractDelayedCallWhileInfo<true>(eval, &callbackName);
+		if (optInfo.has_value() && callbackName[0])
+		{
+			*result = true;
+			ScopedLock lock(g_callWhilePerSecondsInfosCS);
+			g_namedCallWhilePerSecondsInfos.insert_or_assign(callbackName, std::move(optInfo.value()));
+		}
 	}
 	return true;
 }
@@ -1430,6 +1610,14 @@ void ClearDelayedCalls()
 	g_callAfterInfos.clear();
 	g_callWhenInfos.clear();
 	g_callWhilePerSecondsInfos.clear();
+	g_callAfterFramesInfos.clear();
+
+	g_namedCallForInfos.clear();
+	g_namedCallWhileInfos.clear();
+	g_namedCallAfterInfos.clear();
+	g_namedCallWhenInfos.clear();
+	g_namedCallWhilePerSecondsInfos.clear();
+	g_namedCallAfterFramesInfos.clear();
 }
 
 void DecompileScriptToFolder(const std::string& scriptName, Script* script, const std::string& fileExtension, const std::string_view& modName)
