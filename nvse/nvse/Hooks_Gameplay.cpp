@@ -64,8 +64,6 @@ bool RunCommand_NS(COMMAND_ARGS, Cmd_Execute cmd)
 	return cmdResult;
 }
 
-float g_gameSecondsPassed = 0;
-
 bool IsGamePaused()
 {
 	bool isMainOrPauseMenuOpen = *(Menu**)0x11DAAC0; // g_startMenu, credits to lStewieAl
@@ -836,7 +834,6 @@ static void HandleMainLoopHook(void)
 	const auto vatsTimeMult = ThisStdCall<double>(0x9C8CC0, reinterpret_cast<void*>(0x11F2250));
 	const float timeDelta = g_timeGlobal->secondsPassed * static_cast<float>(vatsTimeMult);
 	const auto isMenuMode = CdeclCall<bool>(0x702360);
-	g_gameSecondsPassed += timeDelta;
 
 	// handle calls from cmd CallWhile
 	HandleCallWhileScripts(isMenuMode);

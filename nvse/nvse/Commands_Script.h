@@ -307,119 +307,114 @@ DEFINE_COMMAND_EXP(CallWhilePerSeconds, "calls UDF every couple of seconds, unti
 #if RUNTIME
 using CallArgs = std::vector<SelfOwningArrayElement>;
 
-struct DelayedCallInfo
+struct DelayedCallInfoAlt
 {
 	Script* script;
-	float time;
+	float timeToCountdown;
+	float timeElapsed = 0.0f;
 	TESObjectREFR* thisObj;
 	LambdaManager::LambdaVariableContext lambdaVariableContext;
-	enum Mode : UInt8 {
-		kMode_RunInGameModeOnly = 0,
-		kMode_AlsoRunInMenuMode = 1,
-		kMode_AlsoDontRunWhilePaused = 2, // won't run when paused (main menu, pause menu, console menu).
-	} mode;
+	enum class RunWhenMode : UInt8 {
+		RunInGameModeOnly = 0,
+		AlsoRunInMenuMode,
+		AlsoDontRunWhilePaused, // won't run when paused (main menu, pause menu, console menu).
+	} runWhenMode;
+	enum class RunHowMode : UInt8 {
+		FollowWorldTime = 0,
+		FollowPlayerTime,
+		FollowRealTime
+	} runHowMode;
 	CallArgs args;
 
-	[[nodiscard]] bool ShouldRun(bool isMenuMode, bool isPaused)
+	[[nodiscard]] bool ShouldRun(bool isMenuMode, bool isPaused) const
 	{
-		if (isMenuMode && mode == kMode_RunInGameModeOnly)
+		if (isMenuMode && runWhenMode == RunWhenMode::RunInGameModeOnly)
 			return false;
-		if (isPaused && mode >= kMode_AlsoDontRunWhilePaused)
+		if (isPaused && runWhenMode >= RunWhenMode::AlsoDontRunWhilePaused)
 			return false;
 		return true;
 	}
 
-	DelayedCallInfo(Script* script, float time, TESObjectREFR* thisObj, Mode mode, CallArgs &&args = {})
-		: script(script), time(time), thisObj(thisObj),
-		  lambdaVariableContext(script), mode(mode),
+	DelayedCallInfoAlt(Script* script, float timeToCountdown, TESObjectREFR* thisObj,
+		RunWhenMode runWhenMode, RunHowMode runHowMode, CallArgs &&args = {})
+		: script(script), timeToCountdown(timeToCountdown), thisObj(thisObj),
+		  lambdaVariableContext(script), runWhenMode(runWhenMode), runHowMode(runHowMode),
 	      args(std::move(args))
 	{
 	}
 };
 
-struct CallWhileInfo
+enum class CallWhileFlags : UInt32 {
+	None = 0,
+	PassArgs_ToCallFunc = 1 << 0,
+	PassArgs_ToConditionFunc = 1 << 1,
+
+	// By default, runs in MenuMode, GameMode, and when paused.
+	DontRunInMenuMode = 1 << 2,
+	DontRunInGameMode = 1 << 3,
+	DontRunWhilePaused = 1 << 4,
+
+	// By default, counts down following the game world's time.
+	IgnoreTurbo = 1 << 6, // follow the player time instead, if this flag is enabled
+	FollowRealTime = 1 << 7, // ignore time multipliers entirely (follow IRL time).
+};
+inline constexpr CallWhileFlags operator&(CallWhileFlags Lhs, CallWhileFlags Rhs) {
+	return static_cast<CallWhileFlags>(
+		static_cast<std::underlying_type_t<CallWhileFlags>>(Lhs) &
+		static_cast<std::underlying_type_t<CallWhileFlags>>(Rhs));
+}
+
+struct CallWhileSkeleton
+{
+	CallWhileFlags flags;
+	CallWhileSkeleton(CallWhileFlags flags) : flags(flags) {};
+
+	[[nodiscard]] bool PassArgsToCallFunc() const { return (flags & CallWhileFlags::PassArgs_ToCallFunc) != CallWhileFlags::None; }
+	[[nodiscard]] bool PassArgsToCondFunc() const { return (flags & CallWhileFlags::PassArgs_ToConditionFunc) != CallWhileFlags::None; }
+
+	[[nodiscard]] bool ShouldRun(bool isMenuMode, bool isPaused)
+	{
+		if (isMenuMode && ((flags & CallWhileFlags::DontRunInMenuMode) != CallWhileFlags::None))
+			return false;
+		if (!isMenuMode && ((flags & CallWhileFlags::DontRunInGameMode) != CallWhileFlags::None))
+			return false;
+		if (isPaused && ((flags & CallWhileFlags::DontRunWhilePaused) != CallWhileFlags::None))
+			return false;
+		return true;
+	}
+};
+
+struct CallWhileInfo : CallWhileSkeleton
 {
 	Script* callFunction;
 	Script* condition;
 	TESObjectREFR* thisObj;
 	LambdaManager::LambdaVariableContext callFnLambdaCtx;
 	LambdaManager::LambdaVariableContext condFnLambdaCtx;
-	enum eFlags : UInt8 {
-		kFlags_None = 0,
-		kPassArgs_ToCallFunc = 1 << 0,
-		kPassArgs_ToConditionFunc = 1 << 1,
-
-		// Runs in both MenuMode and GameMode by default.
-		kFlag_DontRunInMenuMode = 1 << 2,
-		kFlag_DontRunInGameMode = 1 << 3,
-
-		// Runs while paused by default
-		kFlag_DontRunWhilePaused = 1 << 4,
-	} flags;
 	CallArgs args;
 
-	[[nodiscard]] bool PassArgsToCallFunc() const { return flags & kPassArgs_ToCallFunc; }
-	[[nodiscard]] bool PassArgsToCondFunc() const { return flags & kPassArgs_ToConditionFunc; }
-
-	[[nodiscard]] bool ShouldRun(bool isMenuMode, bool isPaused)
-	{
-		if (isMenuMode && (flags & kFlag_DontRunInMenuMode))
-			return false;
-		if (!isMenuMode && (flags & kFlag_DontRunInGameMode))
-			return false;
-		if (isPaused && (flags & kFlag_DontRunWhilePaused))
-			return false;
-		return true;
-	}
-
-	CallWhileInfo(Script* callFunction, Script* condition, TESObjectREFR* thisObj, eFlags flags, CallArgs &&args = {})
+	CallWhileInfo(Script* callFunction, Script* condition, TESObjectREFR* thisObj, CallWhileFlags flags, CallArgs &&args = {})
 		: callFunction(callFunction), condition(condition), thisObj(thisObj),
-		  callFnLambdaCtx(callFunction), condFnLambdaCtx(condition), flags(flags),
+		  callFnLambdaCtx(callFunction), condFnLambdaCtx(condition), CallWhileSkeleton(flags),
 		  args(std::move(args))
 	{
 	}
 };
 
-struct DelayedCallWhileInfo
+struct DelayedCallWhileInfo : CallWhileSkeleton
 {
-	float interval, oldTime;
+	float interval, elapsedTime = 0.0f;
 	Script* callFunction;
 	Script* condition;
 	TESObjectREFR* thisObj;
 	LambdaManager::LambdaVariableContext callFnLambdaCtx;
 	LambdaManager::LambdaVariableContext condFnLambdaCtx;
-	enum eFlags : UInt8 {
-		kFlags_None = 0,
-		kPassArgs_ToCallFunc = 1 << 0,
-		kPassArgs_ToConditionFunc = 1 << 1,
-
-		// Runs in both MenuMode and GameMode by default.
-		kFlag_DontRunInMenuMode = 1 << 2,
-		kFlag_DontRunInGameMode = 1 << 3,
-
-		// Runs while paused by default
-		kFlag_DontRunWhilePaused = 1 << 4,
-	} flags;
 	CallArgs args;
 
-	[[nodiscard]] bool PassArgsToCallFunc() const { return flags & kPassArgs_ToCallFunc; }
-	[[nodiscard]] bool PassArgsToCondFunc() const { return flags & kPassArgs_ToConditionFunc; }
-
-	[[nodiscard]] bool ShouldRun(bool isMenuMode, bool isPaused)
-	{
-		if (isMenuMode && (flags & kFlag_DontRunInMenuMode))
-			return false;
-		if (!isMenuMode && (flags & kFlag_DontRunInGameMode))
-			return false;
-		if (isPaused && (flags & kFlag_DontRunWhilePaused))
-			return false;
-		return true;
-	}
-
-	DelayedCallWhileInfo(float interval, float oldTime, Script* callFunction, Script* condition, TESObjectREFR* thisObj, eFlags flags, CallArgs&& args = {})
-		: interval(interval), oldTime(oldTime), callFunction(callFunction), condition(condition),
-		thisObj(thisObj), callFnLambdaCtx(callFunction), condFnLambdaCtx(condition),
-		flags(flags), args(std::move(args))
+	DelayedCallWhileInfo(float interval, Script* callFunction, Script* condition, TESObjectREFR* thisObj, CallWhileFlags flags, CallArgs&& args = {})
+		: interval(interval), callFunction(callFunction), condition(condition),
+		  thisObj(thisObj), callFnLambdaCtx(callFunction), condFnLambdaCtx(condition),
+		  CallWhileSkeleton(flags), args(std::move(args))
 	{
 	}
 };
